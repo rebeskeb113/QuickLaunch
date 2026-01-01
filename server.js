@@ -111,22 +111,52 @@ function deleteTodoFromFile(todoText) {
   }
 }
 
-// Count pending TODOs from TODO.md
+// Count pending TODOs from TODO.md with priority information
 function countPendingTodos() {
   try {
     if (!fs.existsSync(TODO_FILE)) {
-      return { count: 0, items: [] };
+      return { count: 0, items: [], itemsWithPriority: [] };
     }
 
     const content = fs.readFileSync(TODO_FILE, 'utf8');
     const lines = content.split('\n');
     const pendingItems = [];
+    const itemsWithPriority = [];
+
+    let currentPriority = 'Medium'; // Default priority
+    let inNextSession = false; // Track if we're in "Next Session" section
 
     for (const line of lines) {
+      // Track priority sections
+      if (line.match(/^##\s+High\s+Priority/i)) {
+        currentPriority = 'High';
+        inNextSession = false;
+      } else if (line.match(/^##\s+Medium\s+Priority/i)) {
+        currentPriority = 'Medium';
+        inNextSession = false;
+      } else if (line.match(/^##\s+Low\s+Priority/i)) {
+        currentPriority = 'Low';
+        inNextSession = false;
+      } else if (line.match(/^##\s+Next\s+Session/i)) {
+        // Items marked for implementation go here
+        inNextSession = true;
+      } else if (line.match(/^##\s+/)) {
+        // Other sections (like Support Codes Reference) - reset
+        currentPriority = 'Medium';
+        inNextSession = false;
+      }
+
       // Match unchecked checkboxes: - [ ]
       if (line.match(/^[\s]*-\s*\[\s*\]/)) {
         const item = line.replace(/^[\s]*-\s*\[\s*\]\s*/, '').trim();
-        if (item) pendingItems.push(item);
+        if (item) {
+          pendingItems.push(item);
+          itemsWithPriority.push({
+            text: item,
+            priority: currentPriority,
+            markedForImplement: inNextSession // Flag items already in Next Session
+          });
+        }
       }
     }
 
@@ -139,14 +169,105 @@ function countPendingTodos() {
         const item = match.replace(/^### /, '').trim();
         if (!pendingItems.includes(item)) {
           pendingItems.push(`[Auto] ${item}`);
+          itemsWithPriority.push({
+            text: `[Auto] ${item}`,
+            priority: 'High', // Auto-detected issues are high priority
+            markedForImplement: false
+          });
         }
       }
     }
 
-    return { count: pendingItems.length, items: pendingItems };
+    return { count: pendingItems.length, items: pendingItems, itemsWithPriority };
   } catch (err) {
     console.error('Failed to count TODOs:', err.message);
-    return { count: 0, items: [] };
+    return { count: 0, items: [], itemsWithPriority: [] };
+  }
+}
+
+// Apply triage decisions to TODO.md
+function applyTriage(items) {
+  const results = { parking: 0, implement: 0, dontdo: 0 };
+
+  try {
+    if (!fs.existsSync(TODO_FILE)) {
+      return results;
+    }
+
+    let content = fs.readFileSync(TODO_FILE, 'utf8');
+    const lines = content.split('\n');
+
+    // Process each triaged item
+    for (const item of items) {
+      const { text, priority, action } = item;
+
+      if (action === 'parking') {
+        // Parking lot = no change, just leave it where it is
+        results.parking++;
+      } else if (action === 'implement') {
+        // Move to "Next Session" section (create if doesn't exist)
+        // First, find and remove from current location
+        const lineIndex = lines.findIndex(line =>
+          line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(text)
+        );
+
+        if (lineIndex !== -1) {
+          lines.splice(lineIndex, 1); // Remove from current location
+
+          // Find or create "Next Session" section
+          let nextSessionIndex = lines.findIndex(line => line.match(/^##\s+Next\s+Session/i));
+
+          if (nextSessionIndex === -1) {
+            // Create "Next Session" section at the top (after title/description)
+            // Find first ## heading
+            const firstHeadingIndex = lines.findIndex(line => line.match(/^##\s+/));
+            if (firstHeadingIndex !== -1) {
+              lines.splice(firstHeadingIndex, 0, '## Next Session\n', `- [ ] ${text}`, '');
+              nextSessionIndex = firstHeadingIndex;
+            } else {
+              // No headings found, add at end
+              lines.push('', '## Next Session', '', `- [ ] ${text}`);
+            }
+          } else {
+            // Insert after "Next Session" heading
+            lines.splice(nextSessionIndex + 1, 0, `- [ ] ${text}`);
+          }
+
+          results.implement++;
+        }
+      } else if (action === 'dontdo') {
+        // Move to resolution log and remove from TODO.md
+        const lineIndex = lines.findIndex(line =>
+          line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(text)
+        );
+
+        if (lineIndex !== -1) {
+          lines.splice(lineIndex, 1);
+
+          // Log to resolutions file
+          const resolution = {
+            date: new Date().toISOString(),
+            app: 'QuickLaunch',
+            issue: text,
+            errorType: 'TODO_TRIAGED',
+            disposition: 'cancelled',
+            explanation: 'Marked as "Don\'t Do" during triage',
+            notes: `Original priority: ${priority}`
+          };
+          saveResolution(resolution);
+
+          results.dontdo++;
+        }
+      }
+    }
+
+    // Write updated content back
+    fs.writeFileSync(TODO_FILE, lines.join('\n'));
+
+    return results;
+  } catch (err) {
+    console.error('Failed to apply triage:', err.message);
+    return results;
   }
 }
 
@@ -669,6 +790,18 @@ app.get('/api/history/:id', (req, res) => {
 app.get('/api/todos', (req, res) => {
   const todos = countPendingTodos();
   res.json(todos);
+});
+
+// Apply triage decisions to TODO.md
+app.post('/api/triage', (req, res) => {
+  const { items } = req.body;
+
+  if (!items || !Array.isArray(items)) {
+    return res.status(400).json({ error: 'Missing required field: items (array)' });
+  }
+
+  const results = applyTriage(items);
+  res.json(results);
 });
 
 // Get all resolutions (optionally filtered by app)

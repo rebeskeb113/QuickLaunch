@@ -642,6 +642,237 @@
       color: #fff;
     }
 
+    /* Triage Panel - slide up from bottom */
+    .triage-panel-overlay {
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.6);
+      z-index: 2000;
+      opacity: 0;
+      visibility: hidden;
+      transition: opacity 0.3s, visibility 0.3s;
+    }
+
+    .triage-panel-overlay.active {
+      opacity: 1;
+      visibility: visible;
+    }
+
+    .triage-panel {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: #1a1a2e;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px 16px 0 0;
+      max-height: 60vh;
+      display: flex;
+      flex-direction: column;
+      transform: translateY(100%);
+      transition: transform 0.3s ease;
+      z-index: 2001;
+    }
+
+    .triage-panel-overlay.active .triage-panel {
+      transform: translateY(0);
+    }
+
+    .triage-panel-header {
+      padding: 20px 24px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+      flex-shrink: 0;
+    }
+
+    .triage-panel-title {
+      color: #fff;
+      font-size: 1.3rem;
+      font-weight: 500;
+      margin: 0 0 4px 0;
+    }
+
+    .triage-panel-subtitle {
+      color: #8892b0;
+      font-size: 0.85rem;
+      margin: 0;
+    }
+
+    .triage-panel-body {
+      flex: 1;
+      overflow-y: auto;
+      padding: 0;
+    }
+
+    /* Triage table */
+    .triage-table {
+      width: 100%;
+      border-collapse: collapse;
+    }
+
+    .triage-table thead {
+      position: sticky;
+      top: 0;
+      background: #1a1a2e;
+      z-index: 10;
+    }
+
+    .triage-table th {
+      padding: 12px 16px;
+      text-align: left;
+      color: #8892b0;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .triage-table th.mark-for-header {
+      text-align: center;
+      border-bottom: none;
+      padding-bottom: 4px;
+    }
+
+    .triage-table th.mark-sub-header {
+      text-align: center;
+      font-size: 0.65rem;
+      padding-top: 0;
+      color: #5a6a8a;
+    }
+
+    .triage-table td {
+      padding: 12px 16px;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      vertical-align: middle;
+    }
+
+    .triage-table tr:hover {
+      background: rgba(255, 255, 255, 0.03);
+    }
+
+    .triage-table .pri-cell {
+      width: 70px;
+      font-size: 0.75rem;
+      font-weight: 600;
+      text-transform: uppercase;
+    }
+
+    .triage-table .pri-high { color: #ff6b6b; }
+    .triage-table .pri-medium { color: #ffc107; }
+    .triage-table .pri-low { color: #00d9ff; }
+
+    .triage-table .item-cell {
+      color: #ccd6f6;
+      font-size: 0.9rem;
+    }
+
+    .triage-table .checkbox-cell {
+      width: 80px;
+      text-align: center;
+    }
+
+    .triage-checkbox {
+      width: 18px;
+      height: 18px;
+      cursor: pointer;
+      accent-color: #00d9ff;
+    }
+
+    .triage-checkbox.parking:checked {
+      accent-color: #ffc107;
+    }
+
+    .triage-checkbox.implement:checked {
+      accent-color: #00ff88;
+    }
+
+    .triage-checkbox.dont-do:checked {
+      accent-color: #ff6b6b;
+    }
+
+    /* Priority group headers in table */
+    .triage-table .priority-group-row td {
+      background: rgba(255, 255, 255, 0.03);
+      padding: 8px 16px;
+      font-size: 0.8rem;
+      font-weight: 600;
+      color: #8892b0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.1);
+    }
+
+    .triage-panel-footer {
+      padding: 16px 24px;
+      border-top: 1px solid rgba(255, 255, 255, 0.1);
+      display: flex;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-shrink: 0;
+    }
+
+    .triage-btn {
+      padding: 10px 20px;
+      border-radius: 8px;
+      font-size: 0.95rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .triage-btn-cancel {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #8892b0;
+    }
+
+    .triage-btn-cancel:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      color: #fff;
+    }
+
+    .triage-btn-apply {
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      border: none;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    .triage-btn-apply:hover {
+      transform: scale(1.02);
+    }
+
+    .triage-btn-apply:disabled {
+      opacity: 0.5;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Up arrow button in banner */
+    .todo-banner-arrow {
+      background: rgba(255, 193, 7, 0.2);
+      border: 1px solid rgba(255, 193, 7, 0.4);
+      color: #ffc107;
+      padding: 6px 12px;
+      border-radius: 6px;
+      font-size: 1.1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+      display: flex;
+      align-items: center;
+      gap: 6px;
+    }
+
+    .todo-banner-arrow:hover {
+      background: rgba(255, 193, 7, 0.3);
+      color: #fff;
+      transform: translateY(-2px);
+    }
+
+    .todo-banner-arrow .arrow-icon {
+      font-size: 0.9rem;
+    }
+
     /* Resolution modal */
     .resolution-modal .modal {
       max-width: 500px;
@@ -917,7 +1148,43 @@
     <span class="todo-banner-text">
       You have <strong id="todoCount">0</strong> pending TODO(s) - check VSCode Claude to learn more
     </span>
-    <button class="todo-banner-btn" onclick="openResolutionModal()">Mark Resolved</button>
+    <button class="todo-banner-arrow" onclick="openTriagePanel()">
+      <span class="arrow-icon">▲</span>
+      <span>Triage</span>
+    </button>
+  </div>
+
+  <!-- Triage Panel (slide-up) -->
+  <div class="triage-panel-overlay" id="triagePanelOverlay" onclick="closeTriagePanelOnOverlay(event)">
+    <div class="triage-panel">
+      <div class="triage-panel-header">
+        <h2 class="triage-panel-title">Triage Your TODOs</h2>
+        <p class="triage-panel-subtitle">Review and categorize each item for your next Claude Code session</p>
+      </div>
+      <div class="triage-panel-body">
+        <table class="triage-table">
+          <thead>
+            <tr>
+              <th rowspan="2">PRI</th>
+              <th rowspan="2">Item</th>
+              <th colspan="3" class="mark-for-header">Mark for...</th>
+            </tr>
+            <tr>
+              <th class="mark-sub-header">Parking Lot</th>
+              <th class="mark-sub-header">Implement</th>
+              <th class="mark-sub-header">Don't Do</th>
+            </tr>
+          </thead>
+          <tbody id="triageTableBody">
+            <!-- Rows populated by JS -->
+          </tbody>
+        </table>
+      </div>
+      <div class="triage-panel-footer">
+        <button class="triage-btn triage-btn-cancel" onclick="closeTriagePanel()">Cancel</button>
+        <button class="triage-btn triage-btn-apply" id="triageApplyBtn" onclick="applyTriageChanges()">Apply Changes</button>
+      </div>
+    </div>
   </div>
 
   <!-- Toast notifications container -->
@@ -1656,10 +1923,10 @@
       }
     });
 
-    // ========== TODO BANNER & RESOLUTIONS ==========
+    // ========== TODO BANNER & TRIAGE PANEL ==========
 
-    let currentTodos = { count: 0, items: [] };
-    let selectedTodoIndex = -1;
+    let currentTodos = { count: 0, items: [], itemsWithPriority: [] };
+    let triageSelections = {}; // { index: 'parking' | 'implement' | 'dontdo' | null }
 
     // Fetch TODO count and update banner
     async function fetchTodos() {
@@ -1683,7 +1950,193 @@
       }
     }
 
-    // Open resolution modal
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // ========== TRIAGE PANEL ==========
+
+    function openTriagePanel() {
+      const tbody = document.getElementById('triageTableBody');
+      triageSelections = {};
+
+      if (!currentTodos.itemsWithPriority || currentTodos.itemsWithPriority.length === 0) {
+        tbody.innerHTML = '<tr><td colspan="5" style="color: #8892b0; text-align: center; padding: 40px;">No pending TODOs found</td></tr>';
+      } else {
+        // Group items by priority
+        const grouped = { high: [], medium: [], low: [] };
+        currentTodos.itemsWithPriority.forEach((item, idx) => {
+          const pri = item.priority.toLowerCase();
+          if (grouped[pri]) {
+            grouped[pri].push({ ...item, originalIndex: idx });
+          } else {
+            grouped.low.push({ ...item, originalIndex: idx });
+          }
+        });
+
+        let html = '';
+        const priorities = ['high', 'medium', 'low'];
+        const priLabels = { high: 'High Priority', medium: 'Medium Priority', low: 'Low Priority' };
+
+        for (const pri of priorities) {
+          if (grouped[pri].length === 0) continue;
+
+          for (const item of grouped[pri]) {
+            const idx = item.originalIndex;
+            const priClass = `pri-${pri}`;
+            // Check if item was previously marked as "implement" (persisted flag)
+            const isImplement = item.markedForImplement || false;
+
+            // Initialize selection state
+            if (isImplement) {
+              triageSelections[idx] = 'implement';
+            }
+
+            html += `
+              <tr data-index="${idx}">
+                <td class="pri-cell ${priClass}">${pri.charAt(0).toUpperCase() + pri.slice(1)}</td>
+                <td class="item-cell">${escapeHtml(item.text)}</td>
+                <td class="checkbox-cell">
+                  <input type="checkbox" class="triage-checkbox parking"
+                         data-index="${idx}" data-action="parking"
+                         onchange="handleTriageCheckbox(this)"
+                         ${triageSelections[idx] === 'parking' ? 'checked' : ''}>
+                </td>
+                <td class="checkbox-cell">
+                  <input type="checkbox" class="triage-checkbox implement"
+                         data-index="${idx}" data-action="implement"
+                         onchange="handleTriageCheckbox(this)"
+                         ${isImplement ? 'checked' : ''}>
+                </td>
+                <td class="checkbox-cell">
+                  <input type="checkbox" class="triage-checkbox dont-do"
+                         data-index="${idx}" data-action="dontdo"
+                         onchange="handleTriageCheckbox(this)"
+                         ${triageSelections[idx] === 'dontdo' ? 'checked' : ''}>
+                </td>
+              </tr>
+            `;
+          }
+        }
+
+        tbody.innerHTML = html;
+      }
+
+      document.getElementById('triagePanelOverlay').classList.add('active');
+    }
+
+    function closeTriagePanel() {
+      document.getElementById('triagePanelOverlay').classList.remove('active');
+      triageSelections = {};
+    }
+
+    function closeTriagePanelOnOverlay(event) {
+      if (event.target === event.currentTarget) {
+        closeTriagePanel();
+      }
+    }
+
+    // Handle checkbox click - radio-button behavior (only one per row)
+    function handleTriageCheckbox(checkbox) {
+      const index = parseInt(checkbox.dataset.index);
+      const action = checkbox.dataset.action;
+
+      if (checkbox.checked) {
+        // Uncheck other checkboxes in the same row
+        const row = checkbox.closest('tr');
+        row.querySelectorAll('.triage-checkbox').forEach(cb => {
+          if (cb !== checkbox) {
+            cb.checked = false;
+          }
+        });
+        triageSelections[index] = action;
+      } else {
+        // If unchecking, clear selection
+        triageSelections[index] = null;
+      }
+    }
+
+    // Apply triage changes
+    async function applyTriageChanges() {
+      const applyBtn = document.getElementById('triageApplyBtn');
+      applyBtn.disabled = true;
+      applyBtn.textContent = 'Applying...';
+
+      try {
+        // Build the triage data
+        const triageData = [];
+        for (const [indexStr, action] of Object.entries(triageSelections)) {
+          if (!action) continue;
+          const index = parseInt(indexStr);
+          const item = currentTodos.itemsWithPriority[index];
+          if (item) {
+            triageData.push({
+              text: item.text,
+              priority: item.priority,
+              action: action // 'parking', 'implement', or 'dontdo'
+            });
+          }
+        }
+
+        if (triageData.length === 0) {
+          showToast({
+            type: 'warning',
+            title: 'No changes',
+            message: 'No items were marked. Select at least one item to apply changes.'
+          });
+          applyBtn.disabled = false;
+          applyBtn.textContent = 'Apply Changes';
+          return;
+        }
+
+        const response = await fetch('/api/triage', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ items: triageData })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to apply triage');
+        }
+
+        const result = await response.json();
+        closeTriagePanel();
+
+        // Build summary message
+        const summary = [];
+        if (result.parking > 0) summary.push(`${result.parking} parked`);
+        if (result.implement > 0) summary.push(`${result.implement} marked for implementation`);
+        if (result.dontdo > 0) summary.push(`${result.dontdo} moved to resolution log`);
+
+        showToast({
+          type: 'success',
+          title: 'Triage Complete',
+          message: summary.join(', ') || 'Changes applied'
+        });
+
+        // Refresh TODO count
+        await fetchTodos();
+
+      } catch (err) {
+        console.error('Failed to apply triage:', err);
+        showToast({
+          type: 'error',
+          title: 'Triage Failed',
+          message: err.message
+        });
+      } finally {
+        applyBtn.disabled = false;
+        applyBtn.textContent = 'Apply Changes';
+      }
+    }
+
+    // ========== LEGACY RESOLUTION MODAL (kept for backwards compatibility) ==========
+
+    let selectedTodoIndex = -1;
+
+    // Open resolution modal (legacy - keeping for direct resolution if needed)
     function openResolutionModal() {
       const listEl = document.getElementById('todoListPreview');
 
@@ -1700,7 +2153,6 @@
       }
 
       document.getElementById('resolutionModalOverlay').classList.add('active');
-      document.getElementById('resolutionFix').focus();
     }
 
     function selectTodo(index) {
@@ -1708,12 +2160,6 @@
       document.querySelectorAll('#todoListPreview input[type="radio"]').forEach((r, i) => {
         r.checked = i === index;
       });
-    }
-
-    function escapeHtml(text) {
-      const div = document.createElement('div');
-      div.textContent = text;
-      return div.innerHTML;
     }
 
     // Close resolution modal
