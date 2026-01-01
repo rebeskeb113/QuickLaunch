@@ -371,6 +371,520 @@
     .delete-btn:hover {
       background: rgba(255, 107, 107, 0.4);
     }
+
+    /* Status badge for starting/failed states */
+    .status-badge {
+      display: inline-block;
+      padding: 2px 8px;
+      border-radius: 4px;
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      margin-top: 4px;
+    }
+
+    .status-badge.starting {
+      background: rgba(255, 193, 7, 0.2);
+      color: #ffc107;
+      animation: pulse 1.5s infinite;
+    }
+
+    .status-badge.failed {
+      background: rgba(255, 107, 107, 0.2);
+      color: #ff6b6b;
+    }
+
+    /* Loading spinner for toggle */
+    .toggle.loading .toggle-slider:before {
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      animation: spin 1s linear infinite, pulse 1s infinite;
+    }
+
+    @keyframes spin {
+      0% { transform: rotate(0deg); }
+      100% { transform: rotate(360deg); }
+    }
+
+    /* Error toast notification */
+    .toast-container {
+      position: fixed;
+      bottom: 20px;
+      right: 20px;
+      z-index: 2000;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      max-width: 400px;
+    }
+
+    .toast {
+      background: #1a1a2e;
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      border-radius: 12px;
+      padding: 16px;
+      box-shadow: 0 4px 20px rgba(0, 0, 0, 0.3);
+      animation: slideIn 0.3s ease;
+    }
+
+    .toast.success {
+      border-color: rgba(0, 255, 136, 0.3);
+    }
+
+    .toast.warning {
+      border-color: rgba(255, 193, 7, 0.3);
+    }
+
+    .toast.warning .toast-title {
+      color: #ffc107;
+    }
+
+    @keyframes slideIn {
+      from {
+        transform: translateX(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateX(0);
+        opacity: 1;
+      }
+    }
+
+    .toast-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .toast-icon {
+      font-size: 1.2rem;
+    }
+
+    .toast-title {
+      color: #ff6b6b;
+      font-weight: 600;
+      flex: 1;
+    }
+
+    .toast.success .toast-title {
+      color: #00ff88;
+    }
+
+    .toast-close {
+      background: none;
+      border: none;
+      color: #8892b0;
+      cursor: pointer;
+      font-size: 1.2rem;
+      padding: 0;
+      line-height: 1;
+    }
+
+    .toast-close:hover {
+      color: #fff;
+    }
+
+    .toast-message {
+      color: #ccd6f6;
+      font-size: 0.9rem;
+      margin-bottom: 8px;
+    }
+
+    .toast-suggestion {
+      color: #8892b0;
+      font-size: 0.8rem;
+      padding: 8px;
+      background: rgba(255, 255, 255, 0.05);
+      border-radius: 6px;
+      margin-bottom: 8px;
+    }
+
+    .toast-code {
+      color: #5a6a8a;
+      font-size: 0.7rem;
+      font-family: monospace;
+    }
+
+    .toast-actions {
+      display: flex;
+      gap: 8px;
+      margin-top: 12px;
+    }
+
+    .toast-btn {
+      padding: 8px 16px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .toast-btn-retry {
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      border: none;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    .toast-btn-retry:hover {
+      transform: scale(1.02);
+    }
+
+    .toast-btn-dismiss {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #8892b0;
+    }
+
+    .toast-btn-dismiss:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      color: #fff;
+    }
+
+    /* Troubleshooting steps display */
+    .toast-steps {
+      margin: 8px 0;
+      padding: 0;
+      list-style: none;
+    }
+
+    .toast-step {
+      display: flex;
+      align-items: center;
+      gap: 6px;
+      font-size: 0.75rem;
+      color: #8892b0;
+      padding: 2px 0;
+    }
+
+    .toast-step-icon {
+      width: 14px;
+      text-align: center;
+    }
+
+    .toast-step.success .toast-step-icon { color: #00ff88; }
+    .toast-step.failed .toast-step-icon { color: #ff6b6b; }
+    .toast-step.warning .toast-step-icon { color: #ffc107; }
+
+    /* TODO count banner */
+    .todo-banner {
+      position: fixed;
+      bottom: 0;
+      left: 0;
+      right: 0;
+      background: linear-gradient(90deg, rgba(255, 193, 7, 0.15), rgba(255, 152, 0, 0.15));
+      border-top: 1px solid rgba(255, 193, 7, 0.3);
+      padding: 12px 20px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 12px;
+      z-index: 1500;
+      animation: slideUp 0.3s ease;
+    }
+
+    .todo-banner.hidden {
+      display: none;
+    }
+
+    @keyframes slideUp {
+      from {
+        transform: translateY(100%);
+        opacity: 0;
+      }
+      to {
+        transform: translateY(0);
+        opacity: 1;
+      }
+    }
+
+    .todo-banner-icon {
+      font-size: 1.3rem;
+      animation: wobble 2s infinite;
+    }
+
+    @keyframes wobble {
+      0%, 100% { transform: rotate(0deg); }
+      25% { transform: rotate(-10deg); }
+      75% { transform: rotate(10deg); }
+    }
+
+    .todo-banner-text {
+      color: #ffc107;
+      font-size: 0.95rem;
+    }
+
+    .todo-banner-text strong {
+      color: #fff;
+    }
+
+    .todo-banner-btn {
+      background: rgba(255, 193, 7, 0.2);
+      border: 1px solid rgba(255, 193, 7, 0.4);
+      color: #ffc107;
+      padding: 6px 14px;
+      border-radius: 6px;
+      font-size: 0.85rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .todo-banner-btn:hover {
+      background: rgba(255, 193, 7, 0.3);
+      color: #fff;
+    }
+
+    /* Resolution modal */
+    .resolution-modal .modal {
+      max-width: 500px;
+    }
+
+    .resolution-modal textarea {
+      width: 100%;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 0.95rem;
+      min-height: 80px;
+      resize: vertical;
+      font-family: inherit;
+    }
+
+    .resolution-modal textarea:focus {
+      outline: none;
+      border-color: #00d9ff;
+    }
+
+    .disposition-options {
+      display: flex;
+      gap: 12px;
+      margin-top: 8px;
+    }
+
+    .disposition-option {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 12px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .disposition-option:hover {
+      background: rgba(255, 255, 255, 0.06);
+    }
+
+    .disposition-option:has(input:checked) {
+      border-color: #00d9ff;
+      background: rgba(0, 217, 255, 0.1);
+    }
+
+    .disposition-option input[type="radio"] {
+      margin-bottom: 6px;
+      accent-color: #00d9ff;
+    }
+
+    .disposition-label {
+      font-weight: 600;
+      font-size: 0.95rem;
+    }
+
+    .disposition-label.resolved {
+      color: #00ff88;
+    }
+
+    .disposition-label.cancelled {
+      color: #ff6b6b;
+    }
+
+    .disposition-desc {
+      color: #8892b0;
+      font-size: 0.75rem;
+      margin-top: 4px;
+    }
+
+    .todo-list-preview {
+      max-height: 200px;
+      overflow-y: auto;
+      margin: 12px 0;
+      padding: 12px;
+      background: rgba(0, 0, 0, 0.2);
+      border-radius: 8px;
+    }
+
+    .todo-list-preview .todo-item {
+      display: flex;
+      align-items: flex-start;
+      gap: 10px;
+      padding: 8px 0;
+      border-bottom: 1px solid rgba(255, 255, 255, 0.05);
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+
+    .todo-list-preview .todo-item:hover {
+      background: rgba(255, 255, 255, 0.05);
+    }
+
+    .todo-list-preview .todo-item:last-child {
+      border-bottom: none;
+    }
+
+    .todo-list-preview .todo-item input[type="radio"] {
+      margin-top: 3px;
+      accent-color: #00d9ff;
+    }
+
+    .todo-list-preview .todo-item-text {
+      color: #ccd6f6;
+      font-size: 0.9rem;
+      flex: 1;
+    }
+
+    /* Adjust footer padding when banner is visible */
+    body.has-todo-banner footer {
+      margin-bottom: 60px;
+    }
+
+    /* Install button styles */
+    .toast-btn-install {
+      background: linear-gradient(90deg, #ffc107, #ff9800);
+      border: none;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    .toast-btn-install:hover {
+      transform: scale(1.02);
+    }
+
+    .toast-btn-install:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Alternative port button */
+    .toast-btn-alt-port {
+      background: linear-gradient(90deg, #a55eea, #5f27cd);
+      border: none;
+      color: #fff;
+      font-weight: 600;
+    }
+
+    .toast-btn-alt-port:hover {
+      transform: scale(1.02);
+    }
+
+    .toast-btn-alt-port:disabled {
+      opacity: 0.6;
+      cursor: not-allowed;
+      transform: none;
+    }
+
+    /* Blocking process info */
+    .toast-process-info {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin: 8px 0;
+      padding: 8px 12px;
+      background: rgba(255, 107, 107, 0.1);
+      border: 1px solid rgba(255, 107, 107, 0.2);
+      border-radius: 6px;
+      font-size: 0.8rem;
+    }
+
+    .toast-process-info .process-name {
+      color: #ff6b6b;
+      font-weight: 600;
+    }
+
+    .toast-process-info .process-pid {
+      color: #8892b0;
+      font-family: monospace;
+    }
+
+    /* Install progress indicator */
+    .install-progress {
+      margin: 12px 0;
+      padding: 12px;
+      background: rgba(255, 193, 7, 0.1);
+      border: 1px solid rgba(255, 193, 7, 0.2);
+      border-radius: 8px;
+    }
+
+    .install-progress-header {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      margin-bottom: 8px;
+    }
+
+    .install-spinner {
+      width: 16px;
+      height: 16px;
+      border: 2px solid rgba(255, 193, 7, 0.3);
+      border-top-color: #ffc107;
+      border-radius: 50%;
+      animation: spin 1s linear infinite;
+    }
+
+    .install-progress-text {
+      color: #ffc107;
+      font-size: 0.85rem;
+      font-weight: 500;
+    }
+
+    .install-progress-logs {
+      max-height: 100px;
+      overflow-y: auto;
+      font-family: 'Monaco', 'Consolas', monospace;
+      font-size: 0.7rem;
+      color: #8892b0;
+      background: rgba(0, 0, 0, 0.2);
+      padding: 8px;
+      border-radius: 4px;
+    }
+
+    .install-progress-logs .log-line {
+      margin: 2px 0;
+      white-space: nowrap;
+      overflow: hidden;
+      text-overflow: ellipsis;
+    }
+
+    .install-progress.success {
+      background: rgba(0, 255, 136, 0.1);
+      border-color: rgba(0, 255, 136, 0.2);
+    }
+
+    .install-progress.success .install-progress-text {
+      color: #00ff88;
+    }
+
+    .install-progress.success .install-spinner {
+      display: none;
+    }
+
+    .install-progress.failed {
+      background: rgba(255, 107, 107, 0.1);
+      border-color: rgba(255, 107, 107, 0.2);
+    }
+
+    .install-progress.failed .install-progress-text {
+      color: #ff6b6b;
+    }
+
+    .install-progress.failed .install-spinner {
+      display: none;
+    }
   </style>
 </head>
 <body>
@@ -387,6 +901,63 @@
     <footer>
       <p>QuickLaunch &bull; Local Dev Dashboard</p>
     </footer>
+  </div>
+
+  <!-- TODO count banner (hidden by default) -->
+  <div class="todo-banner hidden" id="todoBanner">
+    <span class="todo-banner-icon">⚠️</span>
+    <span class="todo-banner-text">
+      You have <strong id="todoCount">0</strong> pending TODO(s) - check VSCode Claude to learn more
+    </span>
+    <button class="todo-banner-btn" onclick="openResolutionModal()">Mark Resolved</button>
+  </div>
+
+  <!-- Toast notifications container -->
+  <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Resolution Modal -->
+  <div class="modal-overlay resolution-modal" id="resolutionModalOverlay">
+    <div class="modal">
+      <h2>Mark TODO as Resolved</h2>
+      <p style="color: #8892b0; margin-bottom: 16px;">Select the item you resolved and describe the fix:</p>
+
+      <div class="todo-list-preview" id="todoListPreview">
+        <!-- TODOs will be populated here -->
+      </div>
+
+      <form id="resolutionForm">
+        <div class="form-group">
+          <label>Disposition</label>
+          <div class="disposition-options">
+            <label class="disposition-option">
+              <input type="radio" name="disposition" value="resolved" checked>
+              <span class="disposition-label resolved">Resolved</span>
+              <span class="disposition-desc">Fixed it, here's how</span>
+            </label>
+            <label class="disposition-option">
+              <input type="radio" name="disposition" value="cancelled">
+              <span class="disposition-label cancelled">Cancelled</span>
+              <span class="disposition-desc">Won't fix, here's why</span>
+            </label>
+          </div>
+        </div>
+
+        <div class="form-group">
+          <label for="resolutionExplanation" id="explanationLabel">How did you fix it?</label>
+          <textarea id="resolutionExplanation" placeholder="Describe what you did to resolve this issue..." required></textarea>
+        </div>
+
+        <div class="form-group">
+          <label for="resolutionNotes">Additional notes (optional)</label>
+          <textarea id="resolutionNotes" placeholder="Any other context or learnings..." style="min-height: 60px;"></textarea>
+        </div>
+
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeResolutionModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Save & Remove from TODO</button>
+        </div>
+      </form>
+    </div>
   </div>
 
   <!-- Add App Modal -->
@@ -417,6 +988,16 @@
           <label for="appIcon">Icon (emoji)</label>
           <input type="text" id="appIcon" placeholder="e.g., &#x1F4E7;" maxlength="4">
         </div>
+        <div class="form-group">
+          <label for="appStartupTimeout">Startup Timeout (seconds)</label>
+          <input type="number" id="appStartupTimeout" placeholder="30" min="5" max="300">
+          <small>How long to wait for the app to respond (default: 30s). Increase for slow-starting apps.</small>
+        </div>
+        <div class="form-group">
+          <label for="appHealthUrl">Health Check URL (optional)</label>
+          <input type="text" id="appHealthUrl" placeholder="e.g., /api/health">
+          <small>Custom endpoint to check. Leave blank to check the root URL.</small>
+        </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
           <button type="submit" class="btn btn-primary">Save App</button>
@@ -426,6 +1007,270 @@
   </div>
 
   <script>
+    // Toast notification system
+    function showToast({ type = 'error', title, message, suggestion, supportCode, canRetry, canInstall, canUseAlternative, alternativePort, blockingProcess, packageManager, app, troubleshooting }) {
+      const container = document.getElementById('toastContainer');
+      const toast = document.createElement('div');
+      toast.className = `toast ${type}`;
+
+      const stepsHtml = troubleshooting?.length ? `
+        <ul class="toast-steps">
+          ${troubleshooting.map(step => {
+            const icon = step.status === 'success' || step.status === 'available' || step.status === 'exists' || step.status === 'found' || step.status === 'spawned'
+              ? '&#10003;'
+              : step.status === 'failed' || step.status === 'not_found' || step.status === 'crashed' || step.status === 'port_in_use'
+              ? '&#10007;'
+              : step.status === 'warning' || step.warning
+              ? '&#9888;'
+              : '&#8226;';
+            const statusClass = step.status === 'success' || step.status === 'available' || step.status === 'exists' || step.status === 'found' || step.status === 'spawned'
+              ? 'success'
+              : step.status === 'failed' || step.status === 'not_found' || step.status === 'crashed' || step.status === 'port_in_use'
+              ? 'failed'
+              : step.warning
+              ? 'warning'
+              : '';
+            return `<li class="toast-step ${statusClass}"><span class="toast-step-icon">${icon}</span>${formatStepName(step.step)}: ${step.status}${step.warning ? ' - ' + step.warning : ''}</li>`;
+          }).join('')}
+        </ul>
+      ` : '';
+
+      const icon = type === 'error' ? '&#9888;' : type === 'warning' ? '&#9888;' : '&#10003;';
+      toast.innerHTML = `
+        <div class="toast-header">
+          <span class="toast-icon">${icon}</span>
+          <span class="toast-title">${title}</span>
+          <button class="toast-close" onclick="this.closest('.toast').remove()">&times;</button>
+        </div>
+        <div class="toast-message">${message}</div>
+        ${stepsHtml}
+        ${suggestion ? `<div class="toast-suggestion">${suggestion}</div>` : ''}
+        ${supportCode ? `<div class="toast-code">Support code: ${supportCode}</div>` : ''}
+        <div class="toast-actions">
+          ${canUseAlternative && alternativePort && app ? `<button class="toast-btn toast-btn-alt-port" onclick="startWithAlternativePort(${JSON.stringify(app).replace(/"/g, '&quot;')}, ${alternativePort}, this)">Use Port ${alternativePort}</button>` : ''}
+          ${canInstall && app ? `<button class="toast-btn toast-btn-install" onclick="runInstallAndStart(${JSON.stringify(app).replace(/"/g, '&quot;')}, '${packageManager || 'npm'}', this)">Install Dependencies</button>` : ''}
+          ${canRetry && app ? `<button class="toast-btn toast-btn-retry" onclick="retryStart(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">Retry with Auto-Fix</button>` : ''}
+          <button class="toast-btn toast-btn-dismiss" onclick="this.closest('.toast').remove()">Dismiss</button>
+        </div>
+      `;
+
+      container.appendChild(toast);
+
+      // Auto-remove: 10 seconds for success, 30 seconds for errors/warnings
+      const dismissTime = type === 'success' ? 10000 : 30000;
+      setTimeout(() => {
+        if (toast.parentNode) toast.remove();
+      }, dismissTime);
+    }
+
+    function formatStepName(step) {
+      const names = {
+        'history_analysis': 'Pattern analysis',
+        'port_check': 'Port check',
+        'port_info': 'Port info',
+        'kill_port_process': 'Kill blocking process',
+        'path_check': 'Path verification',
+        'package_json_check': 'package.json',
+        'node_modules_check': 'Dependencies',
+        'process_start': 'Process spawn'
+      };
+      return names[step] || step;
+    }
+
+    // Retry start with auto-fix enabled
+    async function retryStart(app, button) {
+      button.disabled = true;
+      button.textContent = 'Retrying...';
+
+      const result = await startApp(app, true); // retry = true
+
+      if (result.success) {
+        button.closest('.toast').remove();
+        showToast({
+          type: 'success',
+          title: 'App Started',
+          message: `${app.name} is now running on port ${app.port}`,
+          troubleshooting: result.troubleshooting
+        });
+      }
+
+      await fetchServerStatus();
+      renderApps();
+    }
+
+    // Start app with alternative port
+    async function startWithAlternativePort(app, alternativePort, button) {
+      button.disabled = true;
+      button.textContent = `Starting on ${alternativePort}...`;
+
+      try {
+        const response = await fetch('/api/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: app.id,
+            name: app.name,
+            port: app.port,
+            path: app.path,
+            command: app.command,
+            overridePort: alternativePort,
+            // Health check configuration (per-app settings)
+            healthCheckUrl: app.healthCheckUrl || null,
+            startupTimeout: app.startupTimeout || 30000
+          })
+        });
+
+        const result = await response.json();
+
+        if (response.ok && result.success) {
+          button.closest('.toast').remove();
+          showToast({
+            type: 'success',
+            title: `${app.name} Started`,
+            message: `Running on port ${alternativePort} (original: ${app.port})`,
+            suggestion: 'Note: This is a temporary port. Update your app settings to make it permanent.',
+            troubleshooting: result.troubleshooting
+          });
+        } else {
+          showToast({
+            type: 'error',
+            title: `Failed to start on port ${alternativePort}`,
+            message: result.error || 'Unknown error',
+            troubleshooting: result.troubleshooting
+          });
+          button.disabled = false;
+          button.textContent = `Use Port ${alternativePort}`;
+        }
+
+        await fetchServerStatus();
+        renderApps();
+
+      } catch (err) {
+        console.error('Failed to start with alternative port:', err);
+        button.disabled = false;
+        button.textContent = `Use Port ${alternativePort}`;
+      }
+    }
+
+    // Run npm/yarn install and then start the app
+    async function runInstallAndStart(app, packageManager, button) {
+      const toast = button.closest('.toast');
+      button.disabled = true;
+      button.textContent = 'Installing...';
+
+      // Add progress indicator to toast
+      const actionsDiv = toast.querySelector('.toast-actions');
+      const progressDiv = document.createElement('div');
+      progressDiv.className = 'install-progress';
+      progressDiv.innerHTML = `
+        <div class="install-progress-header">
+          <div class="install-spinner"></div>
+          <span class="install-progress-text">Running ${packageManager} install...</span>
+        </div>
+        <div class="install-progress-logs"></div>
+      `;
+      actionsDiv.parentNode.insertBefore(progressDiv, actionsDiv);
+
+      const logsDiv = progressDiv.querySelector('.install-progress-logs');
+      const progressText = progressDiv.querySelector('.install-progress-text');
+
+      try {
+        // Start the install
+        const startResponse = await fetch('/api/install', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: app.id,
+            path: app.path,
+            name: app.name
+          })
+        });
+
+        if (!startResponse.ok) {
+          const error = await startResponse.json();
+          throw new Error(error.error || 'Failed to start install');
+        }
+
+        // Poll for progress
+        let installComplete = false;
+        let pollCount = 0;
+        const maxPolls = 300; // 5 minutes max (1 second intervals)
+
+        while (!installComplete && pollCount < maxPolls) {
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          pollCount++;
+
+          try {
+            const statusResponse = await fetch(`/api/install/${app.id}`);
+            const status = await statusResponse.json();
+
+            // Update logs display
+            if (status.logs && status.logs.length > 0) {
+              logsDiv.innerHTML = status.logs.slice(-10).map(log =>
+                `<div class="log-line">${escapeHtml(log.text)}</div>`
+              ).join('');
+              logsDiv.scrollTop = logsDiv.scrollHeight;
+            }
+
+            // Update progress text with duration
+            if (status.duration) {
+              const seconds = Math.floor(status.duration / 1000);
+              progressText.textContent = `Running ${packageManager} install... (${seconds}s)`;
+            }
+
+            if (status.status === 'success') {
+              installComplete = true;
+              progressDiv.classList.add('success');
+              progressText.textContent = `${packageManager} install completed!`;
+
+              // Now start the app
+              await new Promise(resolve => setTimeout(resolve, 500));
+              progressText.textContent = 'Starting app...';
+
+              const result = await startApp(app);
+
+              if (result.success) {
+                toast.remove();
+                showToast({
+                  type: 'success',
+                  title: `${app.name} Started`,
+                  message: `Dependencies installed and app running on port ${app.port}`,
+                  troubleshooting: result.troubleshooting
+                });
+              } else {
+                progressDiv.classList.remove('success');
+                progressDiv.classList.add('failed');
+                progressText.textContent = 'Install succeeded but app failed to start';
+                button.disabled = false;
+                button.textContent = 'Retry Start';
+                button.onclick = () => retryStart(app, button);
+              }
+
+              await fetchServerStatus();
+              renderApps();
+              return;
+
+            } else if (status.status === 'failed') {
+              throw new Error(status.error || `${packageManager} install failed`);
+            }
+          } catch (pollErr) {
+            console.error('Poll error:', pollErr);
+          }
+        }
+
+        if (!installComplete) {
+          throw new Error('Install timed out after 5 minutes');
+        }
+
+      } catch (err) {
+        console.error('Install failed:', err);
+        progressDiv.classList.add('failed');
+        progressText.textContent = `Install failed: ${err.message}`;
+        button.disabled = false;
+        button.textContent = 'Retry Install';
+      }
+    }
+
     // Default apps configuration
     const defaultApps = [
       {
@@ -484,7 +1329,7 @@
     }
 
     // Start an app
-    async function startApp(app) {
+    async function startApp(app, retry = false) {
       try {
         const response = await fetch('/api/start', {
           method: 'POST',
@@ -494,20 +1339,45 @@
             name: app.name,
             port: app.port,
             path: app.path,
-            command: app.command
+            command: app.command,
+            retry,
+            // Health check configuration (per-app settings)
+            healthCheckUrl: app.healthCheckUrl || null,
+            startupTimeout: app.startupTimeout || 30000
           })
         });
 
         const result = await response.json();
         if (!response.ok) {
-          throw new Error(result.error);
+          showToast({
+            type: 'error',
+            title: `Failed to start ${app.name}`,
+            message: result.error,
+            suggestion: result.suggestion,
+            supportCode: result.supportCode,
+            canRetry: result.canRetry,
+            canInstall: result.canInstall,
+            canUseAlternative: result.canUseAlternative,
+            alternativePort: result.alternativePort,
+            blockingProcess: result.blockingProcess,
+            packageManager: result.packageManager,
+            app: app,
+            troubleshooting: result.troubleshooting
+          });
+          return { success: false, ...result };
         }
 
-        return true;
+        return { success: true, ...result };
       } catch (err) {
         console.error('Failed to start app:', err);
-        alert(`Failed to start ${app.name}: ${err.message}`);
-        return false;
+        showToast({
+          type: 'error',
+          title: `Failed to start ${app.name}`,
+          message: err.message || 'Network error - is the QuickLaunch server running?',
+          suggestion: 'Make sure the QuickLaunch server is running (npm start)',
+          supportCode: 'QL-NET-001'
+        });
+        return { success: false, error: err.message };
       }
     }
 
@@ -536,30 +1406,84 @@
     // Handle toggle change
     async function handleToggle(app, checkbox) {
       const toggle = checkbox.closest('.toggle');
+      const card = checkbox.closest('.app-card');
       toggle.classList.add('loading');
       checkbox.disabled = true;
 
-      const shouldStart = checkbox.checked;
-
-      let success;
-      if (shouldStart) {
-        success = await startApp(app);
-      } else {
-        success = await stopApp(app);
+      // Add starting status badge
+      if (checkbox.checked) {
+        const existingBadge = card.querySelector('.status-badge');
+        if (existingBadge) existingBadge.remove();
+        const badge = document.createElement('div');
+        badge.className = 'status-badge starting';
+        badge.textContent = 'Starting...';
+        card.querySelector('.app-port').appendChild(badge);
       }
 
-      // Wait a moment for the process to start/stop
-      await new Promise(resolve => setTimeout(resolve, 1000));
+      const shouldStart = checkbox.checked;
+
+      let result;
+      if (shouldStart) {
+        result = await startApp(app);
+      } else {
+        result = await stopApp(app);
+      }
+
+      // Wait a moment for the process to stabilize
+      await new Promise(resolve => setTimeout(resolve, 1500));
 
       // Refresh status and re-render
       await fetchServerStatus();
       toggle.classList.remove('loading');
       renderApps();
+
+      // If start was successful, show brief success indicator
+      if (shouldStart && result.success) {
+        // Check if there's a pattern warning or health check timeout
+        const hasPatternWarning = result.analysis?.level === 'warning' || result.analysis?.level === 'critical';
+        const hasHealthTimeout = result.healthCheck?.timedOut;
+        const hasPastResolutions = result.analysis?.pastResolutions?.length > 0;
+        const hasWarning = hasPatternWarning || hasHealthTimeout || result.warning;
+
+        let suggestion = hasPatternWarning ? result.analysis.patterns?.[0]?.message : null;
+
+        // If health check timed out, show that as suggestion
+        if (hasHealthTimeout) {
+          suggestion = result.warning || `Health check timed out after ${Math.round(result.healthCheck.elapsed / 1000)}s. App may still be loading.`;
+        }
+
+        // If there are past resolutions for this error type, mention them
+        if (hasPastResolutions && hasPatternWarning) {
+          const relevantRes = result.analysis.pastResolutions.find(r => r.worked);
+          if (relevantRes) {
+            suggestion = `Previously fixed with: "${relevantRes.fix}" (${relevantRes.worked ? 'worked' : 'did not work'})`;
+          }
+        }
+
+        // Include health check info in message
+        let message = `Running on port ${app.port}`;
+        if (result.healthCheck && !hasHealthTimeout) {
+          message += ` (ready in ${Math.round(result.healthCheck.elapsed / 1000)}s)`;
+        }
+        if (hasPatternWarning) {
+          message += `. ${result.analysis.message}`;
+        }
+
+        showToast({
+          type: hasWarning ? 'warning' : 'success',
+          title: hasWarning
+            ? `${app.name} Started (with warnings)`
+            : `${app.name} Started`,
+          message,
+          suggestion,
+          troubleshooting: result.troubleshooting
+        });
+      }
     }
 
     // Delete an app
-    function deleteApp(appId) {
-      if (!confirm('Are you sure you want to remove this app?')) return;
+    function deleteApp(appId, appName) {
+      if (!confirm(`Remove "${appName}" from QuickLaunch?\n\nThis won't delete your app or project files.`)) return;
 
       const apps = loadApps().filter(a => a.id !== appId);
       saveApps(apps);
@@ -575,13 +1499,24 @@
       grid.innerHTML = '';
 
       for (const app of apps) {
-        const isRunning = !!serverStatus[app.id];
+        const statusInfo = serverStatus[app.id];
+        const isRunning = statusInfo?.running || statusInfo?.status === 'running';
+        const isStarting = statusInfo?.status === 'starting';
+        const isFailed = statusInfo?.status === 'failed';
         const colors = app.colors || randomColors();
 
+        // Determine status badge
+        let statusBadge = '';
+        if (isStarting) {
+          statusBadge = '<div class="status-badge starting">Starting...</div>';
+        } else if (isFailed) {
+          statusBadge = '<div class="status-badge failed">Failed</div>';
+        }
+
         const card = document.createElement('div');
-        card.className = `app-card${isRunning ? ' running' : ''}`;
+        card.className = `app-card${isRunning ? ' running' : ''}${isFailed ? ' failed' : ''}`;
         card.innerHTML = `
-          <button class="delete-btn" onclick="deleteApp('${app.id}')" title="Remove app">&times;</button>
+          <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
           <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}"
                onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
                title="${isRunning ? 'Open in browser' : 'Start the app first'}">
@@ -591,11 +1526,12 @@
           <div class="app-port">
             <span class="status-indicator ${isRunning ? 'online' : ''}"></span>
             :${app.port}
+            ${statusBadge}
           </div>
           <div class="toggle-container">
             <span class="toggle-label">Off</span>
-            <label class="toggle">
-              <input type="checkbox" ${isRunning ? 'checked' : ''}
+            <label class="toggle${isStarting ? ' loading' : ''}">
+              <input type="checkbox" ${isRunning || isStarting ? 'checked' : ''} ${isStarting ? 'disabled' : ''}
                      onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
               <span class="toggle-slider"></span>
             </label>
@@ -625,6 +1561,8 @@
       document.getElementById('appPath').value = app?.path || '';
       document.getElementById('appCommand').value = app?.command || 'npm run dev';
       document.getElementById('appIcon').value = app?.icon || '';
+      document.getElementById('appStartupTimeout').value = app?.startupTimeout ? app.startupTimeout / 1000 : '';
+      document.getElementById('appHealthUrl').value = app?.healthCheckUrl || '';
 
       document.getElementById('modalOverlay').classList.add('active');
       document.getElementById('appName').focus();
@@ -645,12 +1583,17 @@
       const path = document.getElementById('appPath').value.trim();
       const command = document.getElementById('appCommand').value.trim();
       const icon = document.getElementById('appIcon').value.trim() || '🚀';
+      const startupTimeoutSec = document.getElementById('appStartupTimeout').value;
+      const healthCheckUrl = document.getElementById('appHealthUrl').value.trim();
+
+      // Convert seconds to milliseconds, default to 30000 (30s)
+      const startupTimeout = startupTimeoutSec ? parseInt(startupTimeoutSec) * 1000 : 30000;
 
       let apps = loadApps();
 
       if (editingId) {
         // Update existing
-        apps = apps.map(a => a.id === editingId ? { ...a, name, port, path, command, icon } : a);
+        apps = apps.map(a => a.id === editingId ? { ...a, name, port, path, command, icon, startupTimeout, healthCheckUrl } : a);
       } else {
         // Add new
         apps.push({
@@ -660,6 +1603,8 @@
           path,
           command,
           icon,
+          startupTimeout,
+          healthCheckUrl,
           colors: randomColors()
         });
       }
@@ -676,14 +1621,162 @@
 
     // Close modal on Escape key
     document.addEventListener('keydown', (e) => {
-      if (e.key === 'Escape') closeModal();
+      if (e.key === 'Escape') {
+        closeModal();
+        closeResolutionModal();
+      }
+    });
+
+    // ========== TODO BANNER & RESOLUTIONS ==========
+
+    let currentTodos = { count: 0, items: [] };
+    let selectedTodoIndex = -1;
+
+    // Fetch TODO count and update banner
+    async function fetchTodos() {
+      try {
+        const response = await fetch('/api/todos');
+        currentTodos = await response.json();
+
+        const banner = document.getElementById('todoBanner');
+        const countEl = document.getElementById('todoCount');
+
+        if (currentTodos.count > 0) {
+          banner.classList.remove('hidden');
+          document.body.classList.add('has-todo-banner');
+          countEl.textContent = currentTodos.count;
+        } else {
+          banner.classList.add('hidden');
+          document.body.classList.remove('has-todo-banner');
+        }
+      } catch (err) {
+        console.error('Failed to fetch TODOs:', err);
+      }
+    }
+
+    // Open resolution modal
+    function openResolutionModal() {
+      const listEl = document.getElementById('todoListPreview');
+
+      if (currentTodos.items.length === 0) {
+        listEl.innerHTML = '<p style="color: #8892b0; text-align: center;">No pending TODOs found</p>';
+      } else {
+        listEl.innerHTML = currentTodos.items.map((item, i) => `
+          <div class="todo-item" onclick="selectTodo(${i})">
+            <input type="radio" name="selectedTodo" value="${i}" ${i === 0 ? 'checked' : ''}>
+            <span class="todo-item-text">${escapeHtml(item)}</span>
+          </div>
+        `).join('');
+        selectedTodoIndex = 0;
+      }
+
+      document.getElementById('resolutionModalOverlay').classList.add('active');
+      document.getElementById('resolutionFix').focus();
+    }
+
+    function selectTodo(index) {
+      selectedTodoIndex = index;
+      document.querySelectorAll('#todoListPreview input[type="radio"]').forEach((r, i) => {
+        r.checked = i === index;
+      });
+    }
+
+    function escapeHtml(text) {
+      const div = document.createElement('div');
+      div.textContent = text;
+      return div.innerHTML;
+    }
+
+    // Close resolution modal
+    function closeResolutionModal() {
+      document.getElementById('resolutionModalOverlay').classList.remove('active');
+      document.getElementById('resolutionForm').reset();
+      selectedTodoIndex = -1;
+    }
+
+    // Update explanation label based on disposition
+    document.querySelectorAll('input[name="disposition"]').forEach(radio => {
+      radio.addEventListener('change', (e) => {
+        const label = document.getElementById('explanationLabel');
+        const textarea = document.getElementById('resolutionExplanation');
+        if (e.target.value === 'resolved') {
+          label.textContent = 'How did you fix it?';
+          textarea.placeholder = 'Describe what you did to resolve this issue...';
+        } else {
+          label.textContent = 'Why are you cancelling this?';
+          textarea.placeholder = 'Explain why this won\'t be fixed (e.g., not needed, too complex, accepted risk)...';
+        }
+      });
+    });
+
+    // Handle resolution form submission
+    document.getElementById('resolutionForm').addEventListener('submit', async (e) => {
+      e.preventDefault();
+
+      if (selectedTodoIndex < 0 || !currentTodos.items[selectedTodoIndex]) {
+        alert('Please select a TODO item');
+        return;
+      }
+
+      const issue = currentTodos.items[selectedTodoIndex];
+      const disposition = document.querySelector('input[name="disposition"]:checked').value;
+      const explanation = document.getElementById('resolutionExplanation').value.trim();
+      const notes = document.getElementById('resolutionNotes').value.trim();
+
+      if (!explanation) {
+        alert(disposition === 'resolved' ? 'Please describe how you fixed it' : 'Please explain why you\'re cancelling');
+        return;
+      }
+
+      try {
+        const response = await fetch('/api/resolutions', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ issue, disposition, explanation, notes })
+        });
+
+        if (!response.ok) {
+          throw new Error('Failed to save resolution');
+        }
+
+        const result = await response.json();
+        closeResolutionModal();
+
+        showToast({
+          type: 'success',
+          title: disposition === 'resolved' ? 'Resolved' : 'Cancelled',
+          message: result.todoDeleted
+            ? `TODO removed from list and logged to resolutions.`
+            : `Logged to resolutions (TODO not found in file).`
+        });
+
+        // Refresh TODO count
+        await fetchTodos();
+
+      } catch (err) {
+        console.error('Failed to save resolution:', err);
+        showToast({
+          type: 'error',
+          title: 'Failed to save',
+          message: err.message
+        });
+      }
+    });
+
+    // Close resolution modal on overlay click
+    document.getElementById('resolutionModalOverlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeResolutionModal();
     });
 
     // Initial render
     renderApps();
+    fetchTodos();
 
     // Refresh status every 5 seconds
     setInterval(renderApps, 5000);
+
+    // Refresh TODOs every 30 seconds
+    setInterval(fetchTodos, 30000);
   </script>
 </body>
 </html>
