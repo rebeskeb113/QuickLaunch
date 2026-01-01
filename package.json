@@ -1,0 +1,12 @@
+{
+  "name": "quicklaunch",
+  "version": "1.0.0",
+  "description": "Local development app launcher dashboard",
+  "scripts": {
+    "start": "npx serve -p 8000",
+    "dev": "npx serve -p 8000"
+  },
+  "keywords": ["localhost", "dashboard", "launcher"],
+  "author": "Ben Rebeske",
+  "license": "MIT"
+}

@@ -1,0 +1,422 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>QuickLaunch</title>
+  <style>
+    * {
+      margin: 0;
+      padding: 0;
+      box-sizing: border-box;
+    }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Oxygen, Ubuntu, sans-serif;
+      background: linear-gradient(135deg, #1a1a2e 0%, #16213e 50%, #0f3460 100%);
+      min-height: 100vh;
+      padding: 40px 20px;
+    }
+
+    .container {
+      max-width: 1200px;
+      margin: 0 auto;
+    }
+
+    header {
+      text-align: center;
+      margin-bottom: 50px;
+    }
+
+    h1 {
+      color: #fff;
+      font-size: 2.5rem;
+      font-weight: 300;
+      letter-spacing: 2px;
+    }
+
+    h1 span {
+      font-weight: 600;
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      -webkit-background-clip: text;
+      -webkit-text-fill-color: transparent;
+      background-clip: text;
+    }
+
+    .subtitle {
+      color: #8892b0;
+      margin-top: 10px;
+      font-size: 1rem;
+    }
+
+    .apps-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      gap: 24px;
+      padding: 20px 0;
+    }
+
+    .app-card {
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 24px;
+      text-align: center;
+      cursor: pointer;
+      transition: all 0.3s ease;
+      text-decoration: none;
+    }
+
+    .app-card:hover {
+      transform: translateY(-5px);
+      background: rgba(255, 255, 255, 0.1);
+      border-color: rgba(0, 217, 255, 0.5);
+      box-shadow: 0 10px 40px rgba(0, 217, 255, 0.2);
+    }
+
+    .app-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 16px;
+      font-size: 28px;
+      background: linear-gradient(135deg, var(--icon-color-1, #00d9ff), var(--icon-color-2, #00ff88));
+    }
+
+    .app-name {
+      color: #fff;
+      font-size: 1.1rem;
+      font-weight: 500;
+      margin-bottom: 6px;
+    }
+
+    .app-port {
+      color: #8892b0;
+      font-size: 0.85rem;
+      font-family: 'Monaco', 'Consolas', monospace;
+    }
+
+    .status-indicator {
+      width: 8px;
+      height: 8px;
+      border-radius: 50%;
+      display: inline-block;
+      margin-right: 6px;
+      background: #ff6b6b;
+    }
+
+    .status-indicator.online {
+      background: #00ff88;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    }
+
+    .add-app {
+      border: 2px dashed rgba(255, 255, 255, 0.2);
+      background: transparent;
+    }
+
+    .add-app:hover {
+      border-color: rgba(0, 217, 255, 0.5);
+      background: rgba(0, 217, 255, 0.05);
+    }
+
+    .add-app .app-icon {
+      background: transparent;
+      border: 2px dashed rgba(255, 255, 255, 0.3);
+      font-size: 32px;
+      color: rgba(255, 255, 255, 0.5);
+    }
+
+    .add-app .app-name {
+      color: #8892b0;
+    }
+
+    footer {
+      text-align: center;
+      margin-top: 60px;
+      color: #5a6a8a;
+      font-size: 0.85rem;
+    }
+
+    /* Modal styles */
+    .modal-overlay {
+      display: none;
+      position: fixed;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(0, 0, 0, 0.8);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .modal-overlay.active {
+      display: flex;
+    }
+
+    .modal {
+      background: #1a1a2e;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 32px;
+      width: 90%;
+      max-width: 400px;
+    }
+
+    .modal h2 {
+      color: #fff;
+      margin-bottom: 24px;
+      font-weight: 500;
+    }
+
+    .form-group {
+      margin-bottom: 20px;
+    }
+
+    .form-group label {
+      display: block;
+      color: #8892b0;
+      margin-bottom: 8px;
+      font-size: 0.9rem;
+    }
+
+    .form-group input {
+      width: 100%;
+      padding: 12px 16px;
+      background: rgba(255, 255, 255, 0.05);
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      border-radius: 8px;
+      color: #fff;
+      font-size: 1rem;
+    }
+
+    .form-group input:focus {
+      outline: none;
+      border-color: #00d9ff;
+    }
+
+    .modal-actions {
+      display: flex;
+      gap: 12px;
+      margin-top: 24px;
+    }
+
+    .btn {
+      flex: 1;
+      padding: 12px 24px;
+      border-radius: 8px;
+      font-size: 1rem;
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+
+    .btn-primary {
+      background: linear-gradient(90deg, #00d9ff, #00ff88);
+      border: none;
+      color: #1a1a2e;
+      font-weight: 600;
+    }
+
+    .btn-primary:hover {
+      transform: scale(1.02);
+    }
+
+    .btn-secondary {
+      background: transparent;
+      border: 1px solid rgba(255, 255, 255, 0.2);
+      color: #8892b0;
+    }
+
+    .btn-secondary:hover {
+      border-color: rgba(255, 255, 255, 0.4);
+      color: #fff;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <header>
+      <h1>Quick<span>Launch</span></h1>
+      <p class="subtitle">Your local development apps, one click away</p>
+    </header>
+
+    <div class="apps-grid" id="appsGrid">
+      <!-- Apps will be rendered here -->
+    </div>
+
+    <footer>
+      <p>QuickLaunch &bull; Local Dev Dashboard</p>
+    </footer>
+  </div>
+
+  <!-- Add App Modal -->
+  <div class="modal-overlay" id="modalOverlay">
+    <div class="modal">
+      <h2>Add New App</h2>
+      <form id="addAppForm">
+        <div class="form-group">
+          <label for="appName">App Name / Codename</label>
+          <input type="text" id="appName" placeholder="e.g., Bulletproof" required>
+        </div>
+        <div class="form-group">
+          <label for="appPort">Port</label>
+          <input type="number" id="appPort" placeholder="e.g., 5173" required>
+        </div>
+        <div class="form-group">
+          <label for="appIcon">Icon (emoji)</label>
+          <input type="text" id="appIcon" placeholder="e.g., &#x1F4E7;" maxlength="4">
+        </div>
+        <div class="modal-actions">
+          <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
+          <button type="submit" class="btn btn-primary">Add App</button>
+        </div>
+      </form>
+    </div>
+  </div>
+
+  <script>
+    // Default apps configuration
+    const defaultApps = [
+      {
+        name: 'Bulletproof',
+        port: 5173,
+        icon: '📧',
+        description: 'HTM Email - Bulletproof HTML emails',
+        colors: ['#ff6b6b', '#feca57']
+      }
+    ];
+
+    // Load apps from localStorage or use defaults
+    function loadApps() {
+      const stored = localStorage.getItem('quicklaunch-apps');
+      return stored ? JSON.parse(stored) : defaultApps;
+    }
+
+    // Save apps to localStorage
+    function saveApps(apps) {
+      localStorage.setItem('quicklaunch-apps', JSON.stringify(apps));
+    }
+
+    // Generate random gradient colors
+    function randomColors() {
+      const colors = [
+        ['#00d9ff', '#00ff88'],
+        ['#ff6b6b', '#feca57'],
+        ['#a55eea', '#5f27cd'],
+        ['#ff9ff3', '#f368e0'],
+        ['#54a0ff', '#2e86de'],
+        ['#1dd1a1', '#10ac84'],
+        ['#ff9f43', '#ee5a24']
+      ];
+      return colors[Math.floor(Math.random() * colors.length)];
+    }
+
+    // Check if app is running
+    async function checkAppStatus(port) {
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 1000);
+        await fetch(`http://localhost:${port}`, {
+          mode: 'no-cors',
+          signal: controller.signal
+        });
+        clearTimeout(timeout);
+        return true;
+      } catch {
+        return false;
+      }
+    }
+
+    // Render all apps
+    async function renderApps() {
+      const apps = loadApps();
+      const grid = document.getElementById('appsGrid');
+      grid.innerHTML = '';
+
+      for (const app of apps) {
+        const isOnline = await checkAppStatus(app.port);
+        const colors = app.colors || randomColors();
+
+        const card = document.createElement('a');
+        card.href = `http://localhost:${app.port}`;
+        card.target = '_blank';
+        card.className = 'app-card';
+        card.innerHTML = `
+          <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}">
+            ${app.icon || '🚀'}
+          </div>
+          <div class="app-name">${app.name}</div>
+          <div class="app-port">
+            <span class="status-indicator ${isOnline ? 'online' : ''}"></span>
+            :${app.port}
+          </div>
+        `;
+        grid.appendChild(card);
+      }
+
+      // Add "Add App" card
+      const addCard = document.createElement('div');
+      addCard.className = 'app-card add-app';
+      addCard.onclick = openModal;
+      addCard.innerHTML = `
+        <div class="app-icon">+</div>
+        <div class="app-name">Add App</div>
+      `;
+      grid.appendChild(addCard);
+    }
+
+    // Modal functions
+    function openModal() {
+      document.getElementById('modalOverlay').classList.add('active');
+      document.getElementById('appName').focus();
+    }
+
+    function closeModal() {
+      document.getElementById('modalOverlay').classList.remove('active');
+      document.getElementById('addAppForm').reset();
+    }
+
+    // Handle form submission
+    document.getElementById('addAppForm').addEventListener('submit', (e) => {
+      e.preventDefault();
+
+      const name = document.getElementById('appName').value.trim();
+      const port = parseInt(document.getElementById('appPort').value);
+      const icon = document.getElementById('appIcon').value.trim() || '🚀';
+
+      const apps = loadApps();
+      apps.push({
+        name,
+        port,
+        icon,
+        colors: randomColors()
+      });
+
+      saveApps(apps);
+      closeModal();
+      renderApps();
+    });
+
+    // Close modal on overlay click
+    document.getElementById('modalOverlay').addEventListener('click', (e) => {
+      if (e.target === e.currentTarget) closeModal();
+    });
+
+    // Close modal on Escape key
+    document.addEventListener('keydown', (e) => {
+      if (e.key === 'Escape') closeModal();
+    });
+
+    // Initial render
+    renderApps();
+
+    // Refresh status every 30 seconds
+    setInterval(renderApps, 30000);
+  </script>
+</body>
+</html>
