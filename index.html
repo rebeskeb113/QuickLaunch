@@ -1427,6 +1427,13 @@
         result = await startApp(app);
       } else {
         result = await stopApp(app);
+        if (result) {
+          showToast({
+            type: 'success',
+            title: `${app.name} Stopped`,
+            message: `App on port ${app.port} has been shut down`
+          });
+        }
       }
 
       // Wait a moment for the process to stabilize
