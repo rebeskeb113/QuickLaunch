@@ -1,12 +1,17 @@
 {
   "name": "quicklaunch",
-  "version": "1.0.0",
-  "description": "Local development app launcher dashboard",
+  "version": "2.0.0",
+  "description": "Local development app launcher dashboard with process control",
+  "main": "server.js",
   "scripts": {
-    "start": "npx serve -p 8000",
-    "dev": "npx serve -p 8000"
+    "start": "node server.js",
+    "dev": "node server.js"
   },
   "keywords": ["localhost", "dashboard", "launcher"],
   "author": "Ben Rebeske",
-  "license": "MIT"
+  "license": "MIT",
+  "dependencies": {
+    "express": "^4.18.2",
+    "tree-kill": "^1.2.2"
+  }
 }

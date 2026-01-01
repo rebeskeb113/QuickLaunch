@@ -1,19 +1,29 @@
 # QuickLaunch
 
 > **Codename:** QuickLaunch
-> **Localhost:** Simply open index.html in browser (static file)
+> **Localhost:** http://localhost:8000
 
 ## About
 
-QuickLaunch is a simple localhost dashboard for quick-launching all your local development apps. It displays app icons with one-click access to their localhost URLs.
+QuickLaunch is a localhost dashboard for launching and controlling local development apps. It displays app icons with one-click access and on/off toggles to start/stop dev servers.
+
+## Development Ground Rules
+
+**We are a team. Claude must converse before implementing.**
+
+1. **No unsolicited features** - Do not add features, UI elements, or functionality without explicit user approval. If you have an idea, propose it first and wait for confirmation.
+2. **Discuss before coding** - Present options and get buy-in before writing code.
+3. **Minimal changes** - Only implement what is explicitly requested.
+4. **Comment generously** - Add lots of comments in code and documentation. This makes unwinding past work much faster.
 
 ## Features
 
-- One-click launch to any localhost app
+- On/off toggle switches to start/stop apps
+- One-click launch to any localhost app (click icon when running)
 - Visual status indicators (green = running, red = offline)
 - Add/manage apps through the UI
 - Apps persist in localStorage
-- Auto-refresh status every 30 seconds
+- Express backend for process control
 
 ## Registered Apps
 
@@ -25,14 +35,18 @@ Apps are stored in localStorage. Default apps:
 
 ## Usage
 
-1. Open `index.html` in your browser
-2. Click any app card to launch it
-3. Click "+ Add App" to register a new localhost app
+```bash
+cd C:\Users\BenjaminRebeske\Documents\Projects\QuickLaunch
+npm start
+```
+
+Then visit http://localhost:8000
 
 ## Tech Stack
 
-- Pure HTML/CSS/JS (no build step required)
-- localStorage for persistence
+- Frontend: HTML/CSS/JS
+- Backend: Express.js (Node.js)
+- Process management: tree-kill
 
 ---
 *Last updated: 2026-01-01*

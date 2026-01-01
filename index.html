@@ -4,6 +4,8 @@
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>QuickLaunch</title>
+  <!-- Favicon: Play button emoji rendered as SVG data URI -->
+  <link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>▶️</text></svg>">
   <style>
     * {
       margin: 0;
@@ -51,7 +53,7 @@
 
     .apps-grid {
       display: grid;
-      grid-template-columns: repeat(auto-fill, minmax(180px, 1fr));
+      grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
       gap: 24px;
       padding: 20px 0;
     }
@@ -62,16 +64,17 @@
       border-radius: 16px;
       padding: 24px;
       text-align: center;
-      cursor: pointer;
       transition: all 0.3s ease;
-      text-decoration: none;
     }
 
     .app-card:hover {
-      transform: translateY(-5px);
-      background: rgba(255, 255, 255, 0.1);
-      border-color: rgba(0, 217, 255, 0.5);
-      box-shadow: 0 10px 40px rgba(0, 217, 255, 0.2);
+      background: rgba(255, 255, 255, 0.08);
+      border-color: rgba(255, 255, 255, 0.2);
+    }
+
+    .app-card.running {
+      border-color: rgba(0, 255, 136, 0.3);
+      box-shadow: 0 0 20px rgba(0, 255, 136, 0.1);
     }
 
     .app-icon {
@@ -84,6 +87,12 @@
       margin: 0 auto 16px;
       font-size: 28px;
       background: linear-gradient(135deg, var(--icon-color-1, #00d9ff), var(--icon-color-2, #00ff88));
+      cursor: pointer;
+      transition: transform 0.2s;
+    }
+
+    .app-card.running .app-icon:hover {
+      transform: scale(1.05);
     }
 
     .app-name {
@@ -97,6 +106,7 @@
       color: #8892b0;
       font-size: 0.85rem;
       font-family: 'Monaco', 'Consolas', monospace;
+      margin-bottom: 16px;
     }
 
     .status-indicator {
@@ -113,9 +123,86 @@
       box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
     }
 
+    /* Toggle Switch */
+    .toggle-container {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      gap: 10px;
+      margin-top: 12px;
+    }
+
+    .toggle-label {
+      color: #8892b0;
+      font-size: 0.8rem;
+      text-transform: uppercase;
+      letter-spacing: 1px;
+    }
+
+    .toggle {
+      position: relative;
+      width: 50px;
+      height: 26px;
+      cursor: pointer;
+    }
+
+    .toggle input {
+      opacity: 0;
+      width: 0;
+      height: 0;
+    }
+
+    .toggle-slider {
+      position: absolute;
+      top: 0;
+      left: 0;
+      right: 0;
+      bottom: 0;
+      background: rgba(255, 255, 255, 0.1);
+      border-radius: 26px;
+      transition: 0.3s;
+    }
+
+    .toggle-slider:before {
+      position: absolute;
+      content: "";
+      height: 20px;
+      width: 20px;
+      left: 3px;
+      bottom: 3px;
+      background: #8892b0;
+      border-radius: 50%;
+      transition: 0.3s;
+    }
+
+    .toggle input:checked + .toggle-slider {
+      background: rgba(0, 255, 136, 0.3);
+    }
+
+    .toggle input:checked + .toggle-slider:before {
+      transform: translateX(24px);
+      background: #00ff88;
+      box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    }
+
+    .toggle input:disabled + .toggle-slider {
+      opacity: 0.5;
+      cursor: not-allowed;
+    }
+
+    .toggle.loading .toggle-slider:before {
+      animation: pulse 1s infinite;
+    }
+
+    @keyframes pulse {
+      0%, 100% { opacity: 1; }
+      50% { opacity: 0.5; }
+    }
+
     .add-app {
       border: 2px dashed rgba(255, 255, 255, 0.2);
       background: transparent;
+      cursor: pointer;
     }
 
     .add-app:hover {
@@ -165,7 +252,7 @@
       border-radius: 16px;
       padding: 32px;
       width: 90%;
-      max-width: 400px;
+      max-width: 450px;
     }
 
     .modal h2 {
@@ -198,6 +285,13 @@
     .form-group input:focus {
       outline: none;
       border-color: #00d9ff;
+    }
+
+    .form-group small {
+      display: block;
+      color: #5a6a8a;
+      margin-top: 6px;
+      font-size: 0.8rem;
     }
 
     .modal-actions {
@@ -236,6 +330,47 @@
       border-color: rgba(255, 255, 255, 0.4);
       color: #fff;
     }
+
+    .btn-danger {
+      background: rgba(255, 107, 107, 0.2);
+      border: 1px solid rgba(255, 107, 107, 0.3);
+      color: #ff6b6b;
+    }
+
+    .btn-danger:hover {
+      background: rgba(255, 107, 107, 0.3);
+    }
+
+    .delete-btn {
+      position: absolute;
+      top: 10px;
+      right: 10px;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      background: rgba(255, 107, 107, 0.2);
+      border: none;
+      color: #ff6b6b;
+      cursor: pointer;
+      opacity: 0;
+      transition: opacity 0.2s;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .app-card {
+      position: relative;
+    }
+
+    .app-card:hover .delete-btn {
+      opacity: 1;
+    }
+
+    .delete-btn:hover {
+      background: rgba(255, 107, 107, 0.4);
+    }
   </style>
 </head>
 <body>
@@ -257,8 +392,9 @@
   <!-- Add App Modal -->
   <div class="modal-overlay" id="modalOverlay">
     <div class="modal">
-      <h2>Add New App</h2>
+      <h2 id="modalTitle">Add New App</h2>
       <form id="addAppForm">
+        <input type="hidden" id="editingId">
         <div class="form-group">
           <label for="appName">App Name / Codename</label>
           <input type="text" id="appName" placeholder="e.g., Bulletproof" required>
@@ -268,12 +404,22 @@
           <input type="number" id="appPort" placeholder="e.g., 5173" required>
         </div>
         <div class="form-group">
+          <label for="appPath">Project Path</label>
+          <input type="text" id="appPath" placeholder="e.g., C:\Projects\MyApp" required>
+          <small>Full path to the project folder</small>
+        </div>
+        <div class="form-group">
+          <label for="appCommand">Start Command</label>
+          <input type="text" id="appCommand" placeholder="e.g., npm run dev" required>
+          <small>Command to start the dev server</small>
+        </div>
+        <div class="form-group">
           <label for="appIcon">Icon (emoji)</label>
           <input type="text" id="appIcon" placeholder="e.g., &#x1F4E7;" maxlength="4">
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
-          <button type="submit" class="btn btn-primary">Add App</button>
+          <button type="submit" class="btn btn-primary">Save App</button>
         </div>
       </form>
     </div>
@@ -283,13 +429,18 @@
     // Default apps configuration
     const defaultApps = [
       {
+        id: 'bulletproof',
         name: 'Bulletproof',
         port: 5173,
+        path: 'C:\\Users\\BenjaminRebeske\\Documents\\Projects\\HTM_Email',
+        command: 'npm run dev',
         icon: '📧',
-        description: 'HTM Email - Bulletproof HTML emails',
         colors: ['#ff6b6b', '#feca57']
       }
     ];
+
+    // Track which apps are currently running (from server)
+    let serverStatus = {};
 
     // Load apps from localStorage or use defaults
     function loadApps() {
@@ -316,44 +467,139 @@
       return colors[Math.floor(Math.random() * colors.length)];
     }
 
-    // Check if app is running
-    async function checkAppStatus(port) {
+    // Generate unique ID
+    function generateId() {
+      return 'app_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+    }
+
+    // Fetch running status from server
+    async function fetchServerStatus() {
       try {
-        const controller = new AbortController();
-        const timeout = setTimeout(() => controller.abort(), 1000);
-        await fetch(`http://localhost:${port}`, {
-          mode: 'no-cors',
-          signal: controller.signal
+        const response = await fetch('/api/status');
+        serverStatus = await response.json();
+      } catch (err) {
+        console.error('Failed to fetch status:', err);
+        serverStatus = {};
+      }
+    }
+
+    // Start an app
+    async function startApp(app) {
+      try {
+        const response = await fetch('/api/start', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            id: app.id,
+            name: app.name,
+            port: app.port,
+            path: app.path,
+            command: app.command
+          })
         });
-        clearTimeout(timeout);
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error);
+        }
+
         return true;
-      } catch {
+      } catch (err) {
+        console.error('Failed to start app:', err);
+        alert(`Failed to start ${app.name}: ${err.message}`);
         return false;
       }
     }
 
+    // Stop an app
+    async function stopApp(app) {
+      try {
+        const response = await fetch('/api/stop', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ id: app.id })
+        });
+
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error);
+        }
+
+        return true;
+      } catch (err) {
+        console.error('Failed to stop app:', err);
+        alert(`Failed to stop ${app.name}: ${err.message}`);
+        return false;
+      }
+    }
+
+    // Handle toggle change
+    async function handleToggle(app, checkbox) {
+      const toggle = checkbox.closest('.toggle');
+      toggle.classList.add('loading');
+      checkbox.disabled = true;
+
+      const shouldStart = checkbox.checked;
+
+      let success;
+      if (shouldStart) {
+        success = await startApp(app);
+      } else {
+        success = await stopApp(app);
+      }
+
+      // Wait a moment for the process to start/stop
+      await new Promise(resolve => setTimeout(resolve, 1000));
+
+      // Refresh status and re-render
+      await fetchServerStatus();
+      toggle.classList.remove('loading');
+      renderApps();
+    }
+
+    // Delete an app
+    function deleteApp(appId) {
+      if (!confirm('Are you sure you want to remove this app?')) return;
+
+      const apps = loadApps().filter(a => a.id !== appId);
+      saveApps(apps);
+      renderApps();
+    }
+
     // Render all apps
     async function renderApps() {
+      await fetchServerStatus();
+
       const apps = loadApps();
       const grid = document.getElementById('appsGrid');
       grid.innerHTML = '';
 
       for (const app of apps) {
-        const isOnline = await checkAppStatus(app.port);
+        const isRunning = !!serverStatus[app.id];
         const colors = app.colors || randomColors();
 
-        const card = document.createElement('a');
-        card.href = `http://localhost:${app.port}`;
-        card.target = '_blank';
-        card.className = 'app-card';
+        const card = document.createElement('div');
+        card.className = `app-card${isRunning ? ' running' : ''}`;
         card.innerHTML = `
-          <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}">
+          <button class="delete-btn" onclick="deleteApp('${app.id}')" title="Remove app">&times;</button>
+          <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}"
+               onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
+               title="${isRunning ? 'Open in browser' : 'Start the app first'}">
             ${app.icon || '🚀'}
           </div>
           <div class="app-name">${app.name}</div>
           <div class="app-port">
-            <span class="status-indicator ${isOnline ? 'online' : ''}"></span>
+            <span class="status-indicator ${isRunning ? 'online' : ''}"></span>
             :${app.port}
+          </div>
+          <div class="toggle-container">
+            <span class="toggle-label">Off</span>
+            <label class="toggle">
+              <input type="checkbox" ${isRunning ? 'checked' : ''}
+                     onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
+              <span class="toggle-slider"></span>
+            </label>
+            <span class="toggle-label">On</span>
           </div>
         `;
         grid.appendChild(card);
@@ -362,7 +608,7 @@
       // Add "Add App" card
       const addCard = document.createElement('div');
       addCard.className = 'app-card add-app';
-      addCard.onclick = openModal;
+      addCard.onclick = () => openModal();
       addCard.innerHTML = `
         <div class="app-icon">+</div>
         <div class="app-name">Add App</div>
@@ -371,7 +617,15 @@
     }
 
     // Modal functions
-    function openModal() {
+    function openModal(app = null) {
+      document.getElementById('modalTitle').textContent = app ? 'Edit App' : 'Add New App';
+      document.getElementById('editingId').value = app?.id || '';
+      document.getElementById('appName').value = app?.name || '';
+      document.getElementById('appPort').value = app?.port || '';
+      document.getElementById('appPath').value = app?.path || '';
+      document.getElementById('appCommand').value = app?.command || 'npm run dev';
+      document.getElementById('appIcon').value = app?.icon || '';
+
       document.getElementById('modalOverlay').classList.add('active');
       document.getElementById('appName').focus();
     }
@@ -385,17 +639,30 @@
     document.getElementById('addAppForm').addEventListener('submit', (e) => {
       e.preventDefault();
 
+      const editingId = document.getElementById('editingId').value;
       const name = document.getElementById('appName').value.trim();
       const port = parseInt(document.getElementById('appPort').value);
+      const path = document.getElementById('appPath').value.trim();
+      const command = document.getElementById('appCommand').value.trim();
       const icon = document.getElementById('appIcon').value.trim() || '🚀';
 
-      const apps = loadApps();
-      apps.push({
-        name,
-        port,
-        icon,
-        colors: randomColors()
-      });
+      let apps = loadApps();
+
+      if (editingId) {
+        // Update existing
+        apps = apps.map(a => a.id === editingId ? { ...a, name, port, path, command, icon } : a);
+      } else {
+        // Add new
+        apps.push({
+          id: generateId(),
+          name,
+          port,
+          path,
+          command,
+          icon,
+          colors: randomColors()
+        });
+      }
 
       saveApps(apps);
       closeModal();
@@ -415,8 +682,8 @@
     // Initial render
     renderApps();
 
-    // Refresh status every 30 seconds
-    setInterval(renderApps, 30000);
+    // Refresh status every 5 seconds
+    setInterval(renderApps, 5000);
   </script>
 </body>
 </html>
