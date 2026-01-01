@@ -165,6 +165,19 @@ function analyzeLogHistory(appId, appName) {
   // Get past resolutions for this app
   analysis.pastResolutions = getResolutions(appName);
 
+  // Build a set of resolved error types (disposition = 'resolved', not 'cancelled')
+  // We only count errors that occurred BEFORE the resolution date as resolved
+  const resolvedErrors = new Map(); // errorType -> resolution date
+  for (const res of analysis.pastResolutions) {
+    if (res.disposition === 'resolved' && res.errorType) {
+      const resDate = new Date(res.date).getTime();
+      // Keep the most recent resolution date for each error type
+      if (!resolvedErrors.has(res.errorType) || resDate > resolvedErrors.get(res.errorType)) {
+        resolvedErrors.set(res.errorType, resDate);
+      }
+    }
+  }
+
   try {
     if (!fs.existsSync(LOG_FILE)) {
       return analysis;
@@ -192,22 +205,35 @@ function analyzeLogHistory(appId, appName) {
         }
       }
 
-      // Count failures
+      // Count failures - but skip if this error type was resolved AFTER this log entry
       if (level === 'ERROR' || level === 'WARN') {
-        analysis.failures++;
-        if (logTime > sevenDaysAgo) {
-          analysis.recentFailures++;
+        // Determine the error type for this log entry
+        let errorType = null;
+        if (rest.includes('Port') && rest.includes('in use')) {
+          errorType = 'PORT_IN_USE';
+        } else if (rest.includes('not found') || rest.includes('not exist')) {
+          errorType = 'PATH_NOT_FOUND';
+        } else if (rest.includes('module') || rest.includes('MODULE')) {
+          errorType = 'MISSING_MODULE';
+        } else if (rest.includes('exited with code')) {
+          errorType = 'CRASH';
         }
 
-        // Categorize error types
-        if (rest.includes('Port') && rest.includes('in use')) {
-          analysis.errorTypes['PORT_IN_USE'] = (analysis.errorTypes['PORT_IN_USE'] || 0) + 1;
-        } else if (rest.includes('not found') || rest.includes('not exist')) {
-          analysis.errorTypes['PATH_NOT_FOUND'] = (analysis.errorTypes['PATH_NOT_FOUND'] || 0) + 1;
-        } else if (rest.includes('module') || rest.includes('MODULE')) {
-          analysis.errorTypes['MISSING_MODULE'] = (analysis.errorTypes['MISSING_MODULE'] || 0) + 1;
-        } else if (rest.includes('exited with code')) {
-          analysis.errorTypes['CRASH'] = (analysis.errorTypes['CRASH'] || 0) + 1;
+        // Check if this error type was resolved after this failure occurred
+        const resolutionDate = errorType ? resolvedErrors.get(errorType) : null;
+        const wasResolved = resolutionDate && logTime < resolutionDate;
+
+        // Only count failures that haven't been resolved
+        if (!wasResolved) {
+          analysis.failures++;
+          if (logTime > sevenDaysAgo) {
+            analysis.recentFailures++;
+          }
+
+          // Categorize error types (only unresolved ones)
+          if (errorType) {
+            analysis.errorTypes[errorType] = (analysis.errorTypes[errorType] || 0) + 1;
+          }
         }
       }
     }
@@ -755,11 +781,28 @@ app.post('/api/resolutions', (req, res) => {
     return res.status(400).json({ error: 'Disposition must be "resolved" or "cancelled"' });
   }
 
+  // Auto-detect error type from issue text if not provided
+  let detectedErrorType = errorType;
+  if (!detectedErrorType || detectedErrorType === 'UNKNOWN') {
+    const issueLower = issue.toLowerCase();
+    if (issueLower.includes('port') || issueLower.includes('address in use') || issueLower.includes('eaddrinuse')) {
+      detectedErrorType = 'PORT_IN_USE';
+    } else if (issueLower.includes('not found') || issueLower.includes('path') || issueLower.includes('enoent')) {
+      detectedErrorType = 'PATH_NOT_FOUND';
+    } else if (issueLower.includes('module') || issueLower.includes('cannot find') || issueLower.includes('node_modules')) {
+      detectedErrorType = 'MISSING_MODULE';
+    } else if (issueLower.includes('crash') || issueLower.includes('exited') || issueLower.includes('failed')) {
+      detectedErrorType = 'CRASH';
+    } else {
+      detectedErrorType = 'UNKNOWN';
+    }
+  }
+
   const resolution = {
     date: new Date().toISOString(),
     app: app || 'General',
     issue,
-    errorType: errorType || 'UNKNOWN',
+    errorType: detectedErrorType,
     disposition,
     explanation,
     notes: notes || ''

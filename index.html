@@ -99,7 +99,15 @@
       color: #fff;
       font-size: 1.1rem;
       font-weight: 500;
+      margin-bottom: 4px;
+    }
+
+    .app-description {
+      color: #8892b0;
+      font-size: 0.75rem;
+      font-weight: 400;
       margin-bottom: 6px;
+      min-height: 1em;
     }
 
     .app-port {
@@ -971,6 +979,11 @@
           <input type="text" id="appName" placeholder="e.g., Bulletproof" required>
         </div>
         <div class="form-group">
+          <label for="appDescription">Description (optional)</label>
+          <input type="text" id="appDescription" placeholder="e.g., HTML email sender with MSAL auth">
+          <small>Brief description of what this app does</small>
+        </div>
+        <div class="form-group">
           <label for="appPort">Port</label>
           <input type="number" id="appPort" placeholder="e.g., 5173" required>
         </div>
@@ -1470,7 +1483,12 @@
         // Include health check info in message
         let message = `Running on port ${app.port}`;
         if (result.healthCheck && !hasHealthTimeout) {
-          message += ` (ready in ${Math.round(result.healthCheck.elapsed / 1000)}s)`;
+          const elapsed = result.healthCheck.elapsed;
+          // Show ms for fast startups, seconds for slower ones
+          const timeStr = elapsed < 1000
+            ? `${elapsed}ms`
+            : `${(elapsed / 1000).toFixed(1)}s`;
+          message += ` (ready in ${timeStr})`;
         }
         if (hasPatternWarning) {
           message += `. ${result.analysis.message}`;
@@ -1530,6 +1548,7 @@
             ${app.icon || '🚀'}
           </div>
           <div class="app-name">${app.name}</div>
+          ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
           <div class="app-port">
             <span class="status-indicator ${isRunning ? 'online' : ''}"></span>
             :${app.port}
@@ -1564,6 +1583,7 @@
       document.getElementById('modalTitle').textContent = app ? 'Edit App' : 'Add New App';
       document.getElementById('editingId').value = app?.id || '';
       document.getElementById('appName').value = app?.name || '';
+      document.getElementById('appDescription').value = app?.description || '';
       document.getElementById('appPort').value = app?.port || '';
       document.getElementById('appPath').value = app?.path || '';
       document.getElementById('appCommand').value = app?.command || 'npm run dev';
@@ -1586,6 +1606,7 @@
 
       const editingId = document.getElementById('editingId').value;
       const name = document.getElementById('appName').value.trim();
+      const description = document.getElementById('appDescription').value.trim();
       const port = parseInt(document.getElementById('appPort').value);
       const path = document.getElementById('appPath').value.trim();
       const command = document.getElementById('appCommand').value.trim();
@@ -1600,12 +1621,13 @@
 
       if (editingId) {
         // Update existing
-        apps = apps.map(a => a.id === editingId ? { ...a, name, port, path, command, icon, startupTimeout, healthCheckUrl } : a);
+        apps = apps.map(a => a.id === editingId ? { ...a, name, description, port, path, command, icon, startupTimeout, healthCheckUrl } : a);
       } else {
         // Add new
         apps.push({
           id: generateId(),
           name,
+          description,
           port,
           path,
           command,
