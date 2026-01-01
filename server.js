@@ -7,16 +7,278 @@ const treeKill = require('tree-kill');
 const app = express();
 const PORT = 8000;
 
-// Track running processes: { appId: { process, port, name, logs, startTime, status } }
+// Track running processes: { appId: { process, port, name, logs, startTime, status, appConfig } }
 const runningProcesses = new Map();
 
 // Track startup attempts and errors for troubleshooting
 const startupHistory = new Map(); // { appId: { attempts: [], lastError: null } }
 
+// Track restart attempts for auto-restart feature
+// { appId: { attempts: number, lastAttempt: timestamp, cooldownUntil: timestamp } }
+const restartTracker = new Map();
+
 // Log file path for troubleshooting
 const LOG_FILE = path.join(__dirname, 'quicklaunch-troubleshoot.log');
 const TODO_FILE = path.join(__dirname, 'TODO.md');
 const RESOLUTIONS_FILE = path.join(__dirname, 'quicklaunch-resolutions.log');
+const APPS_FILE = path.join(__dirname, 'apps.json');
+
+// ========== APPS.JSON MANAGEMENT ==========
+// apps.json is the source of truth for app definitions and port reservations
+
+// Load apps configuration from apps.json
+function loadAppsConfig() {
+  try {
+    if (!fs.existsSync(APPS_FILE)) {
+      // Create default config if doesn't exist
+      const defaultConfig = {
+        reservedPorts: {
+          "8000": "QuickLaunch (system)"
+        },
+        apps: []
+      };
+      fs.writeFileSync(APPS_FILE, JSON.stringify(defaultConfig, null, 2));
+      return defaultConfig;
+    }
+    const content = fs.readFileSync(APPS_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch (err) {
+    console.error('Failed to load apps.json:', err.message);
+    return { reservedPorts: {}, apps: [] };
+  }
+}
+
+// Save apps configuration to apps.json
+function saveAppsConfig(config) {
+  try {
+    fs.writeFileSync(APPS_FILE, JSON.stringify(config, null, 2));
+    return true;
+  } catch (err) {
+    console.error('Failed to save apps.json:', err.message);
+    return false;
+  }
+}
+
+// Check if a port is available (not reserved and not used by another app)
+function checkPortAvailability(port, excludeAppId = null) {
+  const config = loadAppsConfig();
+  const portStr = String(port);
+
+  // Check reserved ports
+  if (config.reservedPorts[portStr]) {
+    return {
+      available: false,
+      reason: 'reserved',
+      usedBy: config.reservedPorts[portStr]
+    };
+  }
+
+  // Check if another app uses this port
+  const conflictingApp = config.apps.find(app =>
+    app.port === port && app.id !== excludeAppId
+  );
+
+  if (conflictingApp) {
+    return {
+      available: false,
+      reason: 'app',
+      usedBy: conflictingApp.name,
+      appId: conflictingApp.id
+    };
+  }
+
+  return { available: true };
+}
+
+// Find next available port starting from a base port (registry-aware)
+function suggestAvailablePort(basePort = 5174) {
+  const config = loadAppsConfig();
+  const usedPorts = new Set();
+
+  // Collect all reserved ports
+  Object.keys(config.reservedPorts).forEach(p => usedPorts.add(parseInt(p)));
+
+  // Collect all app ports
+  config.apps.forEach(app => usedPorts.add(app.port));
+
+  // Find next available
+  let port = basePort;
+  while (usedPorts.has(port) && port < 65535) {
+    port++;
+  }
+
+  return port < 65535 ? port : null;
+}
+
+// Generate unique ID for new apps
+function generateAppId() {
+  return 'app_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// ========== AUTO-RESTART MANAGEMENT ==========
+
+// Check if an app should be auto-restarted
+function shouldAutoRestart(appId, appConfig) {
+  if (!appConfig?.autoRestart) return false;
+
+  const maxAttempts = appConfig.maxRestartAttempts || 3;
+  const tracker = restartTracker.get(appId) || { attempts: 0, lastAttempt: 0, cooldownUntil: 0 };
+
+  // Check if in cooldown
+  if (Date.now() < tracker.cooldownUntil) {
+    console.log(`[AutoRestart] ${appConfig.name} is in cooldown until ${new Date(tracker.cooldownUntil).toISOString()}`);
+    return false;
+  }
+
+  // Check if max attempts reached
+  if (tracker.attempts >= maxAttempts) {
+    console.log(`[AutoRestart] ${appConfig.name} reached max restart attempts (${maxAttempts})`);
+    return false;
+  }
+
+  return true;
+}
+
+// Record a restart attempt
+function recordRestartAttempt(appId, appConfig) {
+  const tracker = restartTracker.get(appId) || { attempts: 0, lastAttempt: 0, cooldownUntil: 0 };
+
+  tracker.attempts++;
+  tracker.lastAttempt = Date.now();
+
+  // If max attempts reached, set a 5-minute cooldown before resetting
+  const maxAttempts = appConfig?.maxRestartAttempts || 3;
+  if (tracker.attempts >= maxAttempts) {
+    tracker.cooldownUntil = Date.now() + (5 * 60 * 1000); // 5 minute cooldown
+  }
+
+  restartTracker.set(appId, tracker);
+  return tracker;
+}
+
+// Reset restart counter (called when app runs stably for a period)
+function resetRestartCounter(appId) {
+  restartTracker.delete(appId);
+}
+
+// Perform auto-restart of an app
+async function autoRestartApp(appId, appConfig) {
+  const name = appConfig.name;
+  console.log(`[AutoRestart] Attempting to restart ${name}...`);
+  logTroubleshoot(name, 'info', 'Auto-restart triggered', { appId });
+
+  const tracker = recordRestartAttempt(appId, appConfig);
+
+  // Small delay before restart
+  await new Promise(resolve => setTimeout(resolve, 2000));
+
+  // Check if port is available
+  const portInUse = await isPortInUse(appConfig.port);
+  if (portInUse) {
+    console.log(`[AutoRestart] Port ${appConfig.port} still in use, attempting to free...`);
+    await killProcessOnPort(appConfig.port);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+  }
+
+  // Spawn new process
+  const isWindows = process.platform === 'win32';
+  const parts = appConfig.command.split(' ');
+  const cmd = parts[0];
+  const args = parts.slice(1);
+
+  const proc = spawn(cmd, args, {
+    cwd: appConfig.path,
+    shell: isWindows,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false
+  });
+
+  const logs = [];
+
+  proc.stdout.on('data', (data) => {
+    const line = data.toString().trim();
+    console.log(`[${name}] ${line}`);
+    logs.push({ type: 'stdout', text: line, time: Date.now() });
+  });
+
+  proc.stderr.on('data', (data) => {
+    const line = data.toString().trim();
+    console.error(`[${name}] ${line}`);
+    logs.push({ type: 'stderr', text: line, time: Date.now() });
+  });
+
+  proc.on('error', (err) => {
+    console.error(`[${name}] Auto-restart failed:`, err.message);
+    logTroubleshoot(name, 'error', 'Auto-restart spawn failed', { error: err.message });
+  });
+
+  // Set up exit handler for the new process (recursive auto-restart)
+  proc.on('exit', (code) => {
+    handleProcessExit(appId, code, appConfig);
+  });
+
+  // Store the new process info
+  runningProcesses.set(appId, {
+    process: proc,
+    port: appConfig.port,
+    name: appConfig.name,
+    logs,
+    startTime: Date.now(),
+    status: 'starting',
+    appConfig // Store config for future restarts
+  });
+
+  logTroubleshoot(name, 'info', `Auto-restarted (attempt ${tracker.attempts})`, { pid: proc.pid });
+
+  // Set a timer to reset the restart counter if app runs stably for 60 seconds
+  setTimeout(() => {
+    const info = runningProcesses.get(appId);
+    if (info && (info.status === 'running' || info.status === 'starting')) {
+      resetRestartCounter(appId);
+      console.log(`[AutoRestart] ${name} running stably, reset restart counter`);
+    }
+  }, 60000);
+
+  return { success: true, pid: proc.pid, attempt: tracker.attempts };
+}
+
+// Handle process exit (used by both initial start and auto-restart)
+function handleProcessExit(appId, exitCode, appConfig) {
+  const name = appConfig?.name || appId;
+  console.log(`[${name}] Exited with code ${exitCode}`);
+  logTroubleshoot(name, exitCode === 0 ? 'info' : 'error', `Process exited with code ${exitCode}`, { exitCode });
+
+  const info = runningProcesses.get(appId);
+  if (info) {
+    const runTime = Date.now() - info.startTime;
+    info.status = 'stopped';
+    info.exitCode = exitCode;
+
+    // If crashed (non-zero exit) after running for a while, consider auto-restart
+    if (exitCode !== 0 && runTime > 5000 && appConfig?.autoRestart) {
+      info.status = 'restarting';
+
+      if (shouldAutoRestart(appId, appConfig)) {
+        autoRestartApp(appId, appConfig).catch(err => {
+          console.error(`[AutoRestart] Failed to restart ${name}:`, err.message);
+          info.status = 'failed';
+          info.error = 'Auto-restart failed: ' + err.message;
+        });
+      } else {
+        info.status = 'failed';
+        info.error = `Crashed (max restart attempts reached)`;
+        logTroubleshoot(name, 'error', 'Auto-restart disabled or max attempts reached', {
+          autoRestart: appConfig?.autoRestart,
+          maxAttempts: appConfig?.maxRestartAttempts
+        });
+      }
+    } else if (exitCode !== 0 && runTime < 5000) {
+      // Quick crash = startup failure, don't auto-restart
+      info.status = 'failed';
+      info.error = `Startup crash (exit code ${exitCode})`;
+    }
+  }
+}
 
 // Parse resolutions log to find past solutions
 function getResolutions(appName = null) {
@@ -125,6 +387,7 @@ function countPendingTodos() {
 
     let currentPriority = 'Medium'; // Default priority
     let inNextSession = false; // Track if we're in "Next Session" section
+    let inParkingLot = false; // Track if we're in "Parking Lot" section
     let inSupportCodes = false; // Track if we're past the main TODO sections
 
     for (const line of lines) {
@@ -132,18 +395,27 @@ function countPendingTodos() {
       if (line.match(/^##\s+High\s+Priority/i)) {
         currentPriority = 'High';
         inNextSession = false;
+        inParkingLot = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Medium\s+Priority/i)) {
         currentPriority = 'Medium';
         inNextSession = false;
+        inParkingLot = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Low\s+Priority/i)) {
         currentPriority = 'Low';
         inNextSession = false;
+        inParkingLot = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Next\s+Session/i)) {
         // Items marked for implementation go here
         inNextSession = true;
+        inParkingLot = false;
+        inSupportCodes = false;
+      } else if (line.match(/^##\s+Parking\s+Lot/i)) {
+        // Items explicitly parked by user
+        inParkingLot = true;
+        inNextSession = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Support\s+Codes/i) || line.match(/^##\s+Auto-Detected/i)) {
         // Non-TODO sections - stop counting
@@ -166,7 +438,8 @@ function countPendingTodos() {
           itemsWithPriority.push({
             text: item,
             priority: currentPriority,
-            markedForImplement: inNextSession // Flag items already in Next Session
+            markedForImplement: inNextSession, // Flag items already in Next Session
+            markedParking: inParkingLot // Flag items explicitly parked by user
           });
         }
       }
@@ -184,7 +457,8 @@ function countPendingTodos() {
           itemsWithPriority.push({
             text: `[Auto] ${item}`,
             priority: 'High', // Auto-detected issues are high priority
-            markedForImplement: false
+            markedForImplement: false,
+            markedParking: false
           });
         }
       }
@@ -215,8 +489,33 @@ function applyTriage(items) {
       const { text, priority, action } = item;
 
       if (action === 'parking') {
-        // Parking lot = no change, just leave it where it is
-        results.parking++;
+        // Move to "Parking Lot" section to mark as explicitly triaged
+        const lineIndex = lines.findIndex(line =>
+          line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(text)
+        );
+
+        if (lineIndex !== -1) {
+          lines.splice(lineIndex, 1); // Remove from current location
+
+          // Find or create "Parking Lot" section
+          let parkingLotIndex = lines.findIndex(line => line.match(/^##\s+Parking\s+Lot/i));
+
+          if (parkingLotIndex === -1) {
+            // Create "Parking Lot" section at the end (before Support Codes if exists)
+            const supportCodesIndex = lines.findIndex(line => line.match(/^##\s+Support\s+Codes/i));
+            if (supportCodesIndex !== -1) {
+              lines.splice(supportCodesIndex, 0, '', '## Parking Lot', '', `- [ ] ${text}`, '');
+            } else {
+              // No support codes section, add at end
+              lines.push('', '## Parking Lot', '', `- [ ] ${text}`);
+            }
+          } else {
+            // Insert after "Parking Lot" heading
+            lines.splice(parkingLotIndex + 1, 0, `- [ ] ${text}`);
+          }
+
+          results.parking++;
+        }
       } else if (action === 'implement') {
         // Move to "Next Session" section (create if doesn't exist)
         // First, find and remove from current location
@@ -805,6 +1104,286 @@ app.get('/api/todos', (req, res) => {
   res.json(todos);
 });
 
+// ========== APPS API ENDPOINTS ==========
+// These endpoints manage the apps.json configuration
+
+// GET /api/apps - Get all apps from apps.json
+app.get('/api/apps', (req, res) => {
+  const config = loadAppsConfig();
+  res.json({
+    apps: config.apps,
+    reservedPorts: config.reservedPorts
+  });
+});
+
+// POST /api/apps - Add a new app
+app.post('/api/apps', (req, res) => {
+  const { name, description, port, path: appPath, command, icon, colors, healthCheckUrl, startupTimeout, autoRestart, maxRestartAttempts } = req.body;
+
+  // Validate required fields
+  if (!name || !port || !appPath || !command) {
+    return res.status(400).json({ error: 'Missing required fields: name, port, path, command' });
+  }
+
+  // Check port availability
+  const portCheck = checkPortAvailability(port);
+  if (!portCheck.available) {
+    return res.status(400).json({
+      error: `Port ${port} is not available`,
+      reason: portCheck.reason,
+      usedBy: portCheck.usedBy,
+      suggestedPort: suggestAvailablePort(port + 1)
+    });
+  }
+
+  const config = loadAppsConfig();
+
+  // Generate new app
+  const newApp = {
+    id: generateAppId(),
+    name,
+    description: description || '',
+    port: parseInt(port),
+    path: appPath,
+    command,
+    icon: icon || '🚀',
+    colors: colors || ['#00d9ff', '#00ff88'],
+    healthCheckUrl: healthCheckUrl || null,
+    startupTimeout: startupTimeout || 30000,
+    autoRestart: autoRestart || false,
+    maxRestartAttempts: maxRestartAttempts || 3
+  };
+
+  config.apps.push(newApp);
+
+  if (saveAppsConfig(config)) {
+    console.log(`[QuickLaunch] Added new app: ${name} on port ${port}`);
+    res.json({ success: true, app: newApp });
+  } else {
+    res.status(500).json({ error: 'Failed to save app configuration' });
+  }
+});
+
+// PUT /api/apps/:id - Update an existing app
+app.put('/api/apps/:id', (req, res) => {
+  const { id } = req.params;
+  const updates = req.body;
+
+  const config = loadAppsConfig();
+  const appIndex = config.apps.findIndex(app => app.id === id);
+
+  if (appIndex === -1) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  // If port is being changed, check availability
+  if (updates.port && updates.port !== config.apps[appIndex].port) {
+    const portCheck = checkPortAvailability(updates.port, id);
+    if (!portCheck.available) {
+      return res.status(400).json({
+        error: `Port ${updates.port} is not available`,
+        reason: portCheck.reason,
+        usedBy: portCheck.usedBy,
+        suggestedPort: suggestAvailablePort(updates.port + 1)
+      });
+    }
+  }
+
+  // Merge updates (preserve fields not being updated)
+  config.apps[appIndex] = {
+    ...config.apps[appIndex],
+    ...updates,
+    id // Ensure ID can't be changed
+  };
+
+  if (saveAppsConfig(config)) {
+    console.log(`[QuickLaunch] Updated app: ${config.apps[appIndex].name}`);
+    res.json({ success: true, app: config.apps[appIndex] });
+  } else {
+    res.status(500).json({ error: 'Failed to save app configuration' });
+  }
+});
+
+// DELETE /api/apps/:id - Delete an app
+app.delete('/api/apps/:id', (req, res) => {
+  const { id } = req.params;
+
+  const config = loadAppsConfig();
+  const appIndex = config.apps.findIndex(app => app.id === id);
+
+  if (appIndex === -1) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  const deletedApp = config.apps[appIndex];
+  config.apps.splice(appIndex, 1);
+
+  if (saveAppsConfig(config)) {
+    console.log(`[QuickLaunch] Deleted app: ${deletedApp.name}`);
+    res.json({ success: true, deleted: deletedApp });
+  } else {
+    res.status(500).json({ error: 'Failed to save app configuration' });
+  }
+});
+
+// GET /api/ports/check/:port - Check if a port is available
+app.get('/api/ports/check/:port', async (req, res) => {
+  const port = parseInt(req.params.port);
+  const excludeAppId = req.query.exclude || null;
+
+  if (isNaN(port) || port < 1 || port > 65535) {
+    return res.status(400).json({ error: 'Invalid port number' });
+  }
+
+  // Check registry (apps.json)
+  const registryCheck = checkPortAvailability(port, excludeAppId);
+
+  // Also check if port is actually in use on the system
+  const systemInUse = await isPortInUse(port);
+
+  res.json({
+    port,
+    registryAvailable: registryCheck.available,
+    registryReason: registryCheck.reason || null,
+    registryUsedBy: registryCheck.usedBy || null,
+    systemInUse,
+    available: registryCheck.available && !systemInUse,
+    suggestedPort: (!registryCheck.available || systemInUse) ? suggestAvailablePort(port + 1) : null
+  });
+});
+
+// GET /api/ports/suggest - Get next available port
+app.get('/api/ports/suggest', (req, res) => {
+  const basePort = parseInt(req.query.base) || 5174;
+  const suggested = suggestAvailablePort(basePort);
+
+  res.json({
+    suggestedPort: suggested,
+    basePort
+  });
+});
+
+// POST /api/ports/reserve - Add a reserved port
+app.post('/api/ports/reserve', (req, res) => {
+  const { port, description } = req.body;
+
+  if (!port || !description) {
+    return res.status(400).json({ error: 'Missing required fields: port, description' });
+  }
+
+  const config = loadAppsConfig();
+  const portStr = String(port);
+
+  // Check if already reserved or used by an app
+  if (config.reservedPorts[portStr]) {
+    return res.status(400).json({
+      error: `Port ${port} is already reserved`,
+      usedBy: config.reservedPorts[portStr]
+    });
+  }
+
+  const conflictingApp = config.apps.find(app => app.port === parseInt(port));
+  if (conflictingApp) {
+    return res.status(400).json({
+      error: `Port ${port} is used by app "${conflictingApp.name}"`,
+      appId: conflictingApp.id
+    });
+  }
+
+  config.reservedPorts[portStr] = description;
+
+  if (saveAppsConfig(config)) {
+    console.log(`[QuickLaunch] Reserved port ${port}: ${description}`);
+    res.json({ success: true, port, description });
+  } else {
+    res.status(500).json({ error: 'Failed to save configuration' });
+  }
+});
+
+// DELETE /api/ports/reserve/:port - Remove a reserved port
+app.delete('/api/ports/reserve/:port', (req, res) => {
+  const portStr = req.params.port;
+
+  const config = loadAppsConfig();
+
+  if (!config.reservedPorts[portStr]) {
+    return res.status(404).json({ error: 'Port reservation not found' });
+  }
+
+  // Prevent removing QuickLaunch's own port
+  if (portStr === '8000') {
+    return res.status(400).json({ error: 'Cannot remove QuickLaunch system port reservation' });
+  }
+
+  const description = config.reservedPorts[portStr];
+  delete config.reservedPorts[portStr];
+
+  if (saveAppsConfig(config)) {
+    console.log(`[QuickLaunch] Removed port reservation: ${portStr}`);
+    res.json({ success: true, port: portStr, wasReservedFor: description });
+  } else {
+    res.status(500).json({ error: 'Failed to save configuration' });
+  }
+});
+
+// POST /api/apps/migrate - Migrate apps from localStorage (one-time import)
+app.post('/api/apps/migrate', (req, res) => {
+  const { apps: clientApps } = req.body;
+
+  if (!clientApps || !Array.isArray(clientApps)) {
+    return res.status(400).json({ error: 'Missing required field: apps (array)' });
+  }
+
+  const config = loadAppsConfig();
+  let imported = 0;
+  let skipped = 0;
+  const results = [];
+
+  for (const clientApp of clientApps) {
+    // Check if app with same ID already exists
+    const exists = config.apps.find(app => app.id === clientApp.id);
+    if (exists) {
+      skipped++;
+      results.push({ id: clientApp.id, name: clientApp.name, status: 'skipped', reason: 'already exists' });
+      continue;
+    }
+
+    // Check if port conflicts
+    const portCheck = checkPortAvailability(clientApp.port);
+    if (!portCheck.available) {
+      skipped++;
+      results.push({ id: clientApp.id, name: clientApp.name, status: 'skipped', reason: `port ${clientApp.port} conflicts with ${portCheck.usedBy}` });
+      continue;
+    }
+
+    // Import the app
+    config.apps.push({
+      id: clientApp.id || generateAppId(),
+      name: clientApp.name,
+      description: clientApp.description || '',
+      port: clientApp.port,
+      path: clientApp.path,
+      command: clientApp.command,
+      icon: clientApp.icon || '🚀',
+      colors: clientApp.colors || ['#00d9ff', '#00ff88'],
+      healthCheckUrl: clientApp.healthCheckUrl || null,
+      startupTimeout: clientApp.startupTimeout || 30000,
+      autoRestart: clientApp.autoRestart || false,
+      maxRestartAttempts: clientApp.maxRestartAttempts || 3
+    });
+
+    imported++;
+    results.push({ id: clientApp.id, name: clientApp.name, status: 'imported' });
+  }
+
+  if (saveAppsConfig(config)) {
+    console.log(`[QuickLaunch] Migration complete: ${imported} imported, ${skipped} skipped`);
+    res.json({ success: true, imported, skipped, results });
+  } else {
+    res.status(500).json({ error: 'Failed to save configuration' });
+  }
+});
+
 // Apply triage decisions to TODO.md
 app.post('/api/triage', (req, res) => {
   const { items } = req.body;
@@ -975,8 +1554,17 @@ app.post('/api/start', async (req, res) => {
     retry = false, overridePort = null,
     // Health check configuration
     healthCheckUrl = null,      // Custom health endpoint (e.g., '/api/health')
-    startupTimeout = 30000      // Max wait time in ms (default 30s, configurable per app speed)
+    startupTimeout = 30000,     // Max wait time in ms (default 30s, configurable per app speed)
+    // Auto-restart configuration
+    autoRestart = false,        // Whether to auto-restart on crash
+    maxRestartAttempts = 3      // Max restart attempts before giving up
   } = req.body;
+
+  // Build app config object for auto-restart feature
+  const appConfig = {
+    id, name, port: overridePort || requestedPort, path: appPath, command,
+    healthCheckUrl, startupTimeout, autoRestart, maxRestartAttempts
+  };
 
   // Use override port if provided (for "use alternative port" feature)
   const port = overridePort || requestedPort;
@@ -1229,38 +1817,32 @@ app.post('/api/start', async (req, res) => {
     });
 
     proc.on('exit', (code) => {
-      console.log(`[${name}] Exited with code ${code}`);
-      logTroubleshoot(name, code === 0 ? 'info' : 'error', `Process exited with code ${code}`, { exitCode: code });
-
+      // Use shared handleProcessExit for auto-restart support
+      // But also handle startup-specific failure tracking here
       const info = runningProcesses.get(id);
-      if (info) {
-        info.status = 'stopped';
-        info.exitCode = code;
+      const runTime = info ? Date.now() - info.startTime : 0;
 
-        // If exited quickly with non-zero, it's a startup failure
-        const runTime = Date.now() - info.startTime;
-        if (code !== 0 && runTime < 5000) {
-          info.status = 'failed';
-          info.error = startupError?.message || `Exited with code ${code}`;
-
-          // Record failure in history
-          attempt.result = 'failed';
-          attempt.troubleshooting.push({
-            step: 'process_start',
-            status: 'crashed',
-            exitCode: code,
-            runTime,
-            error: startupError
-          });
-          history.attempts.push(attempt);
-          history.lastError = {
-            type: startupError?.type || 'STARTUP_CRASH',
-            message: startupError?.message || `Process exited with code ${code}`,
-            exitCode: code,
-            logs: logs.slice(-5)
-          };
-        }
+      // For quick crashes during startup, record in attempt history
+      if (code !== 0 && runTime < 5000) {
+        attempt.result = 'failed';
+        attempt.troubleshooting.push({
+          step: 'process_start',
+          status: 'crashed',
+          exitCode: code,
+          runTime,
+          error: startupError
+        });
+        history.attempts.push(attempt);
+        history.lastError = {
+          type: startupError?.type || 'STARTUP_CRASH',
+          message: startupError?.message || `Process exited with code ${code}`,
+          exitCode: code,
+          logs: logs.slice(-5)
+        };
       }
+
+      // Delegate to shared exit handler (handles auto-restart)
+      handleProcessExit(id, code, appConfig);
     });
 
     runningProcesses.set(id, {
@@ -1269,7 +1851,8 @@ app.post('/api/start', async (req, res) => {
       name,
       logs,
       startTime: Date.now(),
-      status: 'starting'
+      status: 'starting',
+      appConfig // Store config for auto-restart
     });
 
     attempt.troubleshooting.push({ step: 'process_start', status: 'spawned', pid: proc.pid });

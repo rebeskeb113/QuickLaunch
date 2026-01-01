@@ -1,0 +1,21 @@
+{
+  "reservedPorts": {
+    "8000": "QuickLaunch (system)"
+  },
+  "apps": [
+    {
+      "id": "bulletproof",
+      "name": "Bulletproof",
+      "description": "HTML email sender with MSAL auth",
+      "port": 5173,
+      "path": "C:\\Users\\BenjaminRebeske\\Documents\\Projects\\HTM_Email",
+      "command": "npm run dev",
+      "icon": "📧",
+      "colors": ["#ff6b6b", "#feca57"],
+      "healthCheckUrl": null,
+      "startupTimeout": 30000,
+      "autoRestart": false,
+      "maxRestartAttempts": 3
+    }
+  ]
+}

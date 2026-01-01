@@ -4,8 +4,10 @@
 > Review and address these items to improve app reliability.
 
 ## Next Session
-- [ ] Remember user's preference for port conflict handling
-- [ ] Auto-restart on crash (configurable)
+- [ ] Dark/light theme toggle
+- [ ] Drag-and-drop card reordering
+- [x] ~~Remember user's preference for port conflict handling~~ → Replaced with port registry (apps.json) that prevents conflicts
+- [x] Auto-restart on crash (configurable) → Implemented with max 3 attempts, 60s stability reset, 5min cooldown
 
 
 ## High Priority
@@ -45,9 +47,6 @@
 ## Low Priority
 
 ### UI Enhancements
-- [ ] Dark/light theme toggle
-- [ ] Customizable card colors per app
-- [ ] Drag-and-drop card reordering
 - [ ] Keyboard shortcuts (e.g., Ctrl+1 to toggle first app)
 
 ### Process Management
@@ -60,6 +59,11 @@
 - [ ] Webhook notifications on app status change
 
 ---
+
+
+## Parking Lot
+
+- [ ] Customizable card colors per app
 
 ## Support Codes Reference
 

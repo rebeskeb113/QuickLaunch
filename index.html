@@ -302,6 +302,39 @@
       font-size: 0.8rem;
     }
 
+    /* Port validation status styles */
+    .port-checking {
+      color: #8892b0;
+    }
+
+    .port-ok {
+      color: #00ff88;
+    }
+
+    .port-warning {
+      color: #feca57;
+    }
+
+    /* Checkbox styling */
+    .checkbox-group {
+      margin-top: 16px;
+    }
+
+    .checkbox-label {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      cursor: pointer;
+      font-weight: normal;
+    }
+
+    .checkbox-label input[type="checkbox"] {
+      width: 18px;
+      height: 18px;
+      accent-color: #00d9ff;
+      cursor: pointer;
+    }
+
     .modal-actions {
       display: flex;
       gap: 12px;
@@ -400,6 +433,25 @@
     .status-badge.failed {
       background: rgba(255, 107, 107, 0.2);
       color: #ff6b6b;
+    }
+
+    .status-badge.restarting {
+      background: rgba(255, 159, 67, 0.2);
+      color: #ff9f43;
+      animation: pulse 1.5s infinite;
+    }
+
+    /* Auto-restart indicator badge */
+    .auto-restart-badge {
+      display: inline-block;
+      margin-left: 6px;
+      font-size: 0.9em;
+      color: #00d9ff;
+      opacity: 0.7;
+    }
+
+    .app-card.restarting {
+      border-color: #ff9f43;
     }
 
     /* Loading spinner for toggle */
@@ -1170,8 +1222,8 @@
               <th colspan="3" class="mark-for-header">Mark for...</th>
             </tr>
             <tr>
-              <th class="mark-sub-header">Parking Lot</th>
               <th class="mark-sub-header">Implement</th>
+              <th class="mark-sub-header">Parking Lot</th>
               <th class="mark-sub-header">Don't Do</th>
             </tr>
           </thead>
@@ -1253,6 +1305,7 @@
         <div class="form-group">
           <label for="appPort">Port</label>
           <input type="number" id="appPort" placeholder="e.g., 5173" required>
+          <small id="portStatus"></small>
         </div>
         <div class="form-group">
           <label for="appPath">Project Path</label>
@@ -1277,6 +1330,13 @@
           <label for="appHealthUrl">Health Check URL (optional)</label>
           <input type="text" id="appHealthUrl" placeholder="e.g., /api/health">
           <small>Custom endpoint to check. Leave blank to check the root URL.</small>
+        </div>
+        <div class="form-group checkbox-group">
+          <label class="checkbox-label">
+            <input type="checkbox" id="appAutoRestart">
+            <span>Auto-restart on crash</span>
+          </label>
+          <small>Automatically restart the app if it crashes after startup (max 3 attempts)</small>
         </div>
         <div class="modal-actions">
           <button type="button" class="btn btn-secondary" onclick="closeModal()">Cancel</button>
@@ -1327,7 +1387,7 @@
         ${suggestion ? `<div class="toast-suggestion">${suggestion}</div>` : ''}
         ${supportCode ? `<div class="toast-code">Support code: ${supportCode}</div>` : ''}
         <div class="toast-actions">
-          ${canUseAlternative && alternativePort && app ? `<button class="toast-btn toast-btn-alt-port" onclick="startWithAlternativePort(${JSON.stringify(app).replace(/"/g, '&quot;')}, ${alternativePort}, this)">Use Port ${alternativePort}</button>` : ''}
+          ${canUseAlternative && alternativePort && app ? `<button class="toast-btn toast-btn-alt-port" onclick="startWithAlternativePort(${JSON.stringify(app).replace(/"/g, '&quot;')}, ${alternativePort}, this)">Use ${alternativePort} (once)</button>` : ''}
           ${canInstall && app ? `<button class="toast-btn toast-btn-install" onclick="runInstallAndStart(${JSON.stringify(app).replace(/"/g, '&quot;')}, '${packageManager || 'npm'}', this)">Install Dependencies</button>` : ''}
           ${canRetry && app ? `<button class="toast-btn toast-btn-retry" onclick="retryStart(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">Retry with Auto-Fix</button>` : ''}
           <button class="toast-btn toast-btn-dismiss" onclick="this.closest('.toast').remove()">Dismiss</button>
@@ -1404,11 +1464,13 @@
 
         if (response.ok && result.success) {
           button.closest('.toast').remove();
+
+          // Just notify - this is a temporary workaround, not a permanent change
           showToast({
             type: 'success',
             title: `${app.name} Started`,
-            message: `Running on port ${alternativePort} (original: ${app.port})`,
-            suggestion: 'Note: This is a temporary port. Update your app settings to make it permanent.',
+            message: `Running on port ${alternativePort} (temporary)`,
+            suggestion: `Your configured port ${app.port} was in use. Close the conflicting app to use your normal port next time.`,
             troubleshooting: result.troubleshooting
           });
         } else {
@@ -1551,34 +1613,147 @@
       }
     }
 
-    // Default apps configuration
-    const defaultApps = [
-      {
-        id: 'bulletproof',
-        name: 'Bulletproof',
-        port: 5173,
-        path: 'C:\\Users\\BenjaminRebeske\\Documents\\Projects\\HTM_Email',
-        command: 'npm run dev',
-        icon: '📧',
-        colors: ['#ff6b6b', '#feca57']
-      }
-    ];
+    // ========== SERVER-SIDE APP MANAGEMENT ==========
+    // apps.json on the server is the source of truth for app definitions
+    // localStorage is only used for one-time migration of legacy data
+
+    // Cache of apps loaded from server
+    let cachedApps = [];
+    let reservedPorts = {};
 
     // Track which apps are currently running (from server)
     let serverStatus = {};
 
-    // Load apps from localStorage or use defaults
-    function loadApps() {
-      const stored = localStorage.getItem('quicklaunch-apps');
-      return stored ? JSON.parse(stored) : defaultApps;
+    // Load apps from server (apps.json)
+    async function loadApps() {
+      try {
+        const response = await fetch('/api/apps');
+        const data = await response.json();
+        cachedApps = data.apps || [];
+        reservedPorts = data.reservedPorts || {};
+        return cachedApps;
+      } catch (err) {
+        console.error('Failed to load apps from server:', err);
+        return cachedApps; // Return cached if server fails
+      }
     }
 
-    // Save apps to localStorage
-    function saveApps(apps) {
-      localStorage.setItem('quicklaunch-apps', JSON.stringify(apps));
+    // Add a new app via server API
+    async function addApp(appData) {
+      try {
+        const response = await fetch('/api/apps', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(appData)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to add app');
+        }
+        return { success: true, app: result.app };
+      } catch (err) {
+        console.error('Failed to add app:', err);
+        return { success: false, error: err.message };
+      }
     }
 
-    // Generate random gradient colors
+    // Update an existing app via server API
+    async function updateApp(appId, updates) {
+      try {
+        const response = await fetch(`/api/apps/${appId}`, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(updates)
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to update app');
+        }
+        return { success: true, app: result.app };
+      } catch (err) {
+        console.error('Failed to update app:', err);
+        return { success: false, error: err.message };
+      }
+    }
+
+    // Delete an app via server API
+    async function deleteAppFromServer(appId) {
+      try {
+        const response = await fetch(`/api/apps/${appId}`, {
+          method: 'DELETE'
+        });
+        const result = await response.json();
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to delete app');
+        }
+        return { success: true };
+      } catch (err) {
+        console.error('Failed to delete app:', err);
+        return { success: false, error: err.message };
+      }
+    }
+
+    // Check port availability via server API
+    async function checkPort(port, excludeAppId = null) {
+      try {
+        const url = excludeAppId
+          ? `/api/ports/check/${port}?exclude=${excludeAppId}`
+          : `/api/ports/check/${port}`;
+        const response = await fetch(url);
+        return await response.json();
+      } catch (err) {
+        console.error('Failed to check port:', err);
+        return { available: true }; // Fail open
+      }
+    }
+
+    // Migrate localStorage apps to server (one-time)
+    async function migrateLocalStorageApps() {
+      const migrationKey = 'quicklaunch-migration-complete';
+      if (localStorage.getItem(migrationKey)) {
+        return; // Already migrated
+      }
+
+      const legacyApps = localStorage.getItem('quicklaunch-apps');
+      if (!legacyApps) {
+        localStorage.setItem(migrationKey, 'true');
+        return; // Nothing to migrate
+      }
+
+      try {
+        const apps = JSON.parse(legacyApps);
+        if (apps.length === 0) {
+          localStorage.setItem(migrationKey, 'true');
+          return;
+        }
+
+        console.log(`[QuickLaunch] Migrating ${apps.length} apps from localStorage...`);
+
+        const response = await fetch('/api/apps/migrate', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ apps })
+        });
+
+        const result = await response.json();
+        if (response.ok) {
+          console.log(`[QuickLaunch] Migration complete: ${result.imported} imported, ${result.skipped} skipped`);
+          localStorage.setItem(migrationKey, 'true');
+
+          if (result.imported > 0) {
+            showToast({
+              type: 'success',
+              title: 'Apps Migrated',
+              message: `${result.imported} app(s) imported from browser storage to server config.`
+            });
+          }
+        }
+      } catch (err) {
+        console.error('Migration failed:', err);
+      }
+    }
+
+    // Generate random gradient colors (for new apps)
     function randomColors() {
       const colors = [
         ['#00d9ff', '#00ff88'],
@@ -1590,11 +1765,6 @@
         ['#ff9f43', '#ee5a24']
       ];
       return colors[Math.floor(Math.random() * colors.length)];
-    }
-
-    // Generate unique ID
-    function generateId() {
-      return 'app_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
     }
 
     // Fetch running status from server
@@ -1623,7 +1793,10 @@
             retry,
             // Health check configuration (per-app settings)
             healthCheckUrl: app.healthCheckUrl || null,
-            startupTimeout: app.startupTimeout || 30000
+            startupTimeout: app.startupTimeout || 30000,
+            // Auto-restart configuration
+            autoRestart: app.autoRestart || false,
+            maxRestartAttempts: app.maxRestartAttempts || 3
           })
         });
 
@@ -1774,19 +1947,31 @@
     }
 
     // Delete an app
-    function deleteApp(appId, appName) {
+    async function deleteApp(appId, appName) {
       if (!confirm(`Remove "${appName}" from QuickLaunch?\n\nThis won't delete your app or project files.`)) return;
 
-      const apps = loadApps().filter(a => a.id !== appId);
-      saveApps(apps);
-      renderApps();
+      const result = await deleteAppFromServer(appId);
+      if (result.success) {
+        showToast({
+          type: 'success',
+          title: 'App Removed',
+          message: `${appName} has been removed from QuickLaunch.`
+        });
+        renderApps();
+      } else {
+        showToast({
+          type: 'error',
+          title: 'Failed to Remove App',
+          message: result.error
+        });
+      }
     }
 
     // Render all apps
     async function renderApps() {
       await fetchServerStatus();
 
-      const apps = loadApps();
+      const apps = await loadApps();
       const grid = document.getElementById('appsGrid');
       grid.innerHTML = '';
 
@@ -1794,19 +1979,25 @@
         const statusInfo = serverStatus[app.id];
         const isRunning = statusInfo?.running || statusInfo?.status === 'running';
         const isStarting = statusInfo?.status === 'starting';
+        const isRestarting = statusInfo?.status === 'restarting';
         const isFailed = statusInfo?.status === 'failed';
         const colors = app.colors || randomColors();
 
         // Determine status badge
         let statusBadge = '';
-        if (isStarting) {
+        if (isRestarting) {
+          statusBadge = '<div class="status-badge restarting">Restarting...</div>';
+        } else if (isStarting) {
           statusBadge = '<div class="status-badge starting">Starting...</div>';
         } else if (isFailed) {
           statusBadge = '<div class="status-badge failed">Failed</div>';
         }
 
+        // Show auto-restart indicator if enabled
+        const autoRestartBadge = app.autoRestart ? '<span class="auto-restart-badge" title="Auto-restart enabled">↻</span>' : '';
+
         const card = document.createElement('div');
-        card.className = `app-card${isRunning ? ' running' : ''}${isFailed ? ' failed' : ''}`;
+        card.className = `app-card${isRunning ? ' running' : ''}${isFailed ? ' failed' : ''}${isRestarting ? ' restarting' : ''}`;
         card.innerHTML = `
           <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
           <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}"
@@ -1814,7 +2005,7 @@
                title="${isRunning ? 'Open in browser' : 'Start the app first'}">
             ${app.icon || '🚀'}
           </div>
-          <div class="app-name">${app.name}</div>
+          <div class="app-name">${app.name}${autoRestartBadge}</div>
           ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
           <div class="app-port">
             <span class="status-indicator ${isRunning ? 'online' : ''}"></span>
@@ -1823,8 +2014,8 @@
           </div>
           <div class="toggle-container">
             <span class="toggle-label">Off</span>
-            <label class="toggle${isStarting ? ' loading' : ''}">
-              <input type="checkbox" ${isRunning || isStarting ? 'checked' : ''} ${isStarting ? 'disabled' : ''}
+            <label class="toggle${isStarting || isRestarting ? ' loading' : ''}">
+              <input type="checkbox" ${isRunning || isStarting || isRestarting ? 'checked' : ''} ${isStarting || isRestarting ? 'disabled' : ''}
                      onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
               <span class="toggle-slider"></span>
             </label>
@@ -1857,6 +2048,7 @@
       document.getElementById('appIcon').value = app?.icon || '';
       document.getElementById('appStartupTimeout').value = app?.startupTimeout ? app.startupTimeout / 1000 : '';
       document.getElementById('appHealthUrl').value = app?.healthCheckUrl || '';
+      document.getElementById('appAutoRestart').checked = app?.autoRestart || false;
 
       document.getElementById('modalOverlay').classList.add('active');
       document.getElementById('appName').focus();
@@ -1865,49 +2057,133 @@
     function closeModal() {
       document.getElementById('modalOverlay').classList.remove('active');
       document.getElementById('addAppForm').reset();
+      document.getElementById('portStatus').textContent = '';
+      document.getElementById('portStatus').className = '';
     }
 
-    // Handle form submission
-    document.getElementById('addAppForm').addEventListener('submit', (e) => {
+    // Real-time port validation
+    let portCheckTimeout = null;
+    document.getElementById('appPort').addEventListener('input', (e) => {
+      const port = parseInt(e.target.value);
+      const portStatus = document.getElementById('portStatus');
+      const editingId = document.getElementById('editingId').value;
+
+      // Clear previous timeout
+      if (portCheckTimeout) clearTimeout(portCheckTimeout);
+
+      if (!port || isNaN(port)) {
+        portStatus.textContent = '';
+        portStatus.className = '';
+        return;
+      }
+
+      if (port < 1 || port > 65535) {
+        portStatus.textContent = '⚠️ Invalid port number (1-65535)';
+        portStatus.className = 'port-warning';
+        return;
+      }
+
+      portStatus.textContent = 'Checking...';
+      portStatus.className = 'port-checking';
+
+      // Debounce the API call
+      portCheckTimeout = setTimeout(async () => {
+        const result = await checkPort(port, editingId || null);
+
+        if (!result.available) {
+          if (result.registryReason === 'reserved') {
+            portStatus.textContent = `⚠️ Reserved: ${result.registryUsedBy}`;
+          } else if (result.registryReason === 'app') {
+            portStatus.textContent = `⚠️ Used by: ${result.registryUsedBy}`;
+          } else if (result.systemInUse) {
+            portStatus.textContent = `⚠️ Port in use on system`;
+          }
+          portStatus.className = 'port-warning';
+
+          if (result.suggestedPort) {
+            portStatus.textContent += ` → Try ${result.suggestedPort}`;
+          }
+        } else {
+          portStatus.textContent = '✓ Available';
+          portStatus.className = 'port-ok';
+        }
+      }, 300);
+    });
+
+    // Handle form submission (uses server API)
+    document.getElementById('addAppForm').addEventListener('submit', async (e) => {
       e.preventDefault();
 
       const editingId = document.getElementById('editingId').value;
       const name = document.getElementById('appName').value.trim();
       const description = document.getElementById('appDescription').value.trim();
       const port = parseInt(document.getElementById('appPort').value);
-      const path = document.getElementById('appPath').value.trim();
+      const appPath = document.getElementById('appPath').value.trim();
       const command = document.getElementById('appCommand').value.trim();
       const icon = document.getElementById('appIcon').value.trim() || '🚀';
       const startupTimeoutSec = document.getElementById('appStartupTimeout').value;
       const healthCheckUrl = document.getElementById('appHealthUrl').value.trim();
+      const autoRestart = document.getElementById('appAutoRestart').checked;
 
       // Convert seconds to milliseconds, default to 30000 (30s)
       const startupTimeout = startupTimeoutSec ? parseInt(startupTimeoutSec) * 1000 : 30000;
 
-      let apps = loadApps();
+      // Disable submit button while processing
+      const submitBtn = e.target.querySelector('button[type="submit"]');
+      const originalText = submitBtn.textContent;
+      submitBtn.disabled = true;
+      submitBtn.textContent = 'Saving...';
+
+      let result;
 
       if (editingId) {
-        // Update existing
-        apps = apps.map(a => a.id === editingId ? { ...a, name, description, port, path, command, icon, startupTimeout, healthCheckUrl } : a);
-      } else {
-        // Add new
-        apps.push({
-          id: generateId(),
+        // Update existing app via server API
+        result = await updateApp(editingId, {
           name,
           description,
           port,
-          path,
+          path: appPath,
           command,
           icon,
           startupTimeout,
           healthCheckUrl,
+          autoRestart
+        });
+      } else {
+        // Add new app via server API
+        result = await addApp({
+          name,
+          description,
+          port,
+          path: appPath,
+          command,
+          icon,
+          startupTimeout,
+          healthCheckUrl,
+          autoRestart,
           colors: randomColors()
         });
       }
 
-      saveApps(apps);
-      closeModal();
-      renderApps();
+      submitBtn.disabled = false;
+      submitBtn.textContent = originalText;
+
+      if (result.success) {
+        showToast({
+          type: 'success',
+          title: editingId ? 'App Updated' : 'App Added',
+          message: `${name} has been ${editingId ? 'updated' : 'added'} successfully.`
+        });
+        closeModal();
+        renderApps();
+      } else {
+        // Show error (e.g., port conflict)
+        showToast({
+          type: 'error',
+          title: editingId ? 'Update Failed' : 'Add Failed',
+          message: result.error
+        });
+      }
     });
 
     // Close modal on overlay click
@@ -1986,12 +2262,15 @@
           for (const item of grouped[pri]) {
             const idx = item.originalIndex;
             const priClass = `pri-${pri}`;
-            // Check if item was previously marked as "implement" (persisted flag)
+            // Check if item was previously marked (persisted flags)
             const isImplement = item.markedForImplement || false;
+            const isParking = item.markedParking || false;
 
-            // Initialize selection state
+            // Initialize selection state based on persisted flags
             if (isImplement) {
               triageSelections[idx] = 'implement';
+            } else if (isParking) {
+              triageSelections[idx] = 'parking';
             }
 
             html += `
@@ -1999,16 +2278,16 @@
                 <td class="pri-cell ${priClass}">${pri.charAt(0).toUpperCase() + pri.slice(1)}</td>
                 <td class="item-cell">${escapeHtml(item.text)}</td>
                 <td class="checkbox-cell">
-                  <input type="checkbox" class="triage-checkbox parking"
-                         data-index="${idx}" data-action="parking"
-                         onchange="handleTriageCheckbox(this)"
-                         ${triageSelections[idx] === 'parking' ? 'checked' : ''}>
-                </td>
-                <td class="checkbox-cell">
                   <input type="checkbox" class="triage-checkbox implement"
                          data-index="${idx}" data-action="implement"
                          onchange="handleTriageCheckbox(this)"
                          ${isImplement ? 'checked' : ''}>
+                </td>
+                <td class="checkbox-cell">
+                  <input type="checkbox" class="triage-checkbox parking"
+                         data-index="${idx}" data-action="parking"
+                         onchange="handleTriageCheckbox(this)"
+                         ${isParking ? 'checked' : ''}>
                 </td>
                 <td class="checkbox-cell">
                   <input type="checkbox" class="triage-checkbox dont-do"
@@ -2243,9 +2522,17 @@
       if (e.target === e.currentTarget) closeResolutionModal();
     });
 
-    // Initial render
-    renderApps();
-    fetchTodos();
+    // Initial render with migration check
+    async function init() {
+      // Migrate localStorage apps if needed (one-time)
+      await migrateLocalStorageApps();
+
+      // Render apps and fetch TODOs
+      await renderApps();
+      fetchTodos();
+    }
+
+    init();
 
     // Refresh status every 5 seconds
     setInterval(renderApps, 5000);
