@@ -3,6 +3,11 @@
 > This file tracks enhancement ideas discovered during troubleshooting sessions.
 > Review and address these items to improve app reliability.
 
+## Next Session
+- [ ] Remember user's preference for port conflict handling
+- [ ] Auto-restart on crash (configurable)
+
+
 ## High Priority
 
 ### Auto-Install Dependencies
@@ -12,7 +17,6 @@
 
 ### Port Conflict Resolution
 - [x] Add option to auto-select next available port when conflict detected
-- [ ] Remember user's preference for port conflict handling
 - [x] Show which process is using the conflicting port
 
 ### Startup Health Check
@@ -48,7 +52,6 @@
 
 ### Process Management
 - [ ] Memory/CPU usage display per app
-- [ ] Auto-restart on crash (configurable)
 - [ ] Scheduled start/stop times
 
 ### Developer Experience

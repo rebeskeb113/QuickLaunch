@@ -125,30 +125,42 @@ function countPendingTodos() {
 
     let currentPriority = 'Medium'; // Default priority
     let inNextSession = false; // Track if we're in "Next Session" section
+    let inSupportCodes = false; // Track if we're past the main TODO sections
 
     for (const line of lines) {
-      // Track priority sections
+      // Track priority sections (## headings)
       if (line.match(/^##\s+High\s+Priority/i)) {
         currentPriority = 'High';
         inNextSession = false;
+        inSupportCodes = false;
       } else if (line.match(/^##\s+Medium\s+Priority/i)) {
         currentPriority = 'Medium';
         inNextSession = false;
+        inSupportCodes = false;
       } else if (line.match(/^##\s+Low\s+Priority/i)) {
         currentPriority = 'Low';
         inNextSession = false;
+        inSupportCodes = false;
       } else if (line.match(/^##\s+Next\s+Session/i)) {
         // Items marked for implementation go here
         inNextSession = true;
-      } else if (line.match(/^##\s+/)) {
-        // Other sections (like Support Codes Reference) - reset
-        currentPriority = 'Medium';
-        inNextSession = false;
+        inSupportCodes = false;
+      } else if (line.match(/^##\s+Support\s+Codes/i) || line.match(/^##\s+Auto-Detected/i)) {
+        // Non-TODO sections - stop counting
+        inSupportCodes = true;
+      } else if (line.match(/^##\s+/) && !line.match(/^###/)) {
+        // Other ## sections we haven't explicitly handled - be conservative
+        // Don't reset priority, just mark as support codes section
+        inSupportCodes = true;
       }
+      // Note: ### subsections (like "### Log Viewer") don't change priority
 
-      // Match unchecked checkboxes: - [ ]
-      if (line.match(/^[\s]*-\s*\[\s*\]/)) {
-        const item = line.replace(/^[\s]*-\s*\[\s*\]\s*/, '').trim();
+      // Skip items in support codes or reference sections
+      if (inSupportCodes) continue;
+
+      // Match unchecked checkboxes: - [ ] (note the space in brackets)
+      if (line.match(/^[\s]*-\s*\[\s\]/)) {
+        const item = line.replace(/^[\s]*-\s*\[\s\]\s*/, '').trim();
         if (item) {
           pendingItems.push(item);
           itemsWithPriority.push({
@@ -178,6 +190,7 @@ function countPendingTodos() {
       }
     }
 
+    console.log(`[QuickLaunch] Found ${pendingItems.length} pending TODOs`);
     return { count: pendingItems.length, items: pendingItems, itemsWithPriority };
   } catch (err) {
     console.error('Failed to count TODOs:', err.message);
