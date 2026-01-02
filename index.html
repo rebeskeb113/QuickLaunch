@@ -819,6 +819,12 @@
     .triage-table .item-cell {
       color: #ccd6f6;
       font-size: 0.9rem;
+      cursor: default;
+    }
+
+    .triage-table .item-cell[data-tooltip-b64] {
+      cursor: help;
+      border-bottom: 1px dotted rgba(136, 146, 176, 0.4);
     }
 
     .triage-table .checkbox-cell {
@@ -1176,6 +1182,43 @@
     .install-progress.failed .install-spinner {
       display: none;
     }
+
+    /* Custom tooltip (replaces truncated native title tooltips) */
+    .custom-tooltip {
+      position: fixed;
+      background: #0a0a14;
+      border: 1px solid #00d9ff;
+      border-radius: 8px;
+      padding: 12px 16px;
+      color: #ffffff;
+      font-size: 0.9rem;
+      line-height: 1.5;
+      max-width: 400px;
+      word-wrap: break-word;
+      white-space: normal;
+      z-index: 10000;
+      box-shadow: 0 4px 24px rgba(0, 217, 255, 0.2), 0 8px 32px rgba(0, 0, 0, 0.6);
+      pointer-events: none;
+      opacity: 0;
+      transition: opacity 0.15s ease;
+    }
+
+    .custom-tooltip.visible {
+      opacity: 1;
+    }
+
+    .custom-tooltip::before {
+      content: '';
+      position: absolute;
+      top: -6px;
+      left: 20px;
+      width: 10px;
+      height: 10px;
+      background: #0a0a14;
+      border-left: 1px solid #00d9ff;
+      border-top: 1px solid #00d9ff;
+      transform: rotate(45deg);
+    }
   </style>
 </head>
 <body>
@@ -1241,6 +1284,9 @@
 
   <!-- Toast notifications container -->
   <div class="toast-container" id="toastContainer"></div>
+
+  <!-- Custom tooltip element -->
+  <div class="custom-tooltip" id="customTooltip"></div>
 
   <!-- Resolution Modal -->
   <div class="modal-overlay resolution-modal" id="resolutionModalOverlay">
@@ -2273,10 +2319,15 @@
               triageSelections[idx] = 'parking';
             }
 
+            // Build tooltip: prefer description, fall back to section
+            const tooltip = item.description || (item.section ? `Part of: ${item.section}` : '');
+            // Encode tooltip as base64 to avoid quote/attribute parsing issues
+            const tooltipEncoded = tooltip ? btoa(unescape(encodeURIComponent(tooltip))) : '';
+
             html += `
               <tr data-index="${idx}">
                 <td class="pri-cell ${priClass}">${pri.charAt(0).toUpperCase() + pri.slice(1)}</td>
-                <td class="item-cell">${escapeHtml(item.text)}</td>
+                <td class="item-cell" ${tooltipEncoded ? `data-tooltip-b64="${tooltipEncoded}"` : ''}>${escapeHtml(item.text)}</td>
                 <td class="checkbox-cell">
                   <input type="checkbox" class="triage-checkbox implement"
                          data-index="${idx}" data-action="implement"
@@ -2520,6 +2571,83 @@
     // Close resolution modal on overlay click
     document.getElementById('resolutionModalOverlay').addEventListener('click', (e) => {
       if (e.target === e.currentTarget) closeResolutionModal();
+    });
+
+    // ========== CUSTOM TOOLTIP SYSTEM ==========
+    // Replaces native title tooltips which truncate long text
+
+    const customTooltip = document.getElementById('customTooltip');
+    let tooltipTimeout = null;
+
+    function showCustomTooltip(element, text) {
+      if (!text) return;
+
+      // Clear any pending hide
+      if (tooltipTimeout) {
+        clearTimeout(tooltipTimeout);
+        tooltipTimeout = null;
+      }
+
+      customTooltip.textContent = text;
+      customTooltip.classList.add('visible');
+
+      // Position tooltip below the element
+      const rect = element.getBoundingClientRect();
+      const tooltipRect = customTooltip.getBoundingClientRect();
+
+      let left = rect.left;
+      let top = rect.bottom + 8;
+
+      // Keep tooltip within viewport horizontally
+      if (left + tooltipRect.width > window.innerWidth - 20) {
+        left = window.innerWidth - tooltipRect.width - 20;
+      }
+      if (left < 20) left = 20;
+
+      // If tooltip would go below viewport, show above instead
+      if (top + tooltipRect.height > window.innerHeight - 20) {
+        top = rect.top - tooltipRect.height - 8;
+        // Move arrow to bottom
+        customTooltip.style.setProperty('--arrow-top', 'auto');
+        customTooltip.style.setProperty('--arrow-bottom', '-6px');
+      }
+
+      customTooltip.style.left = `${left}px`;
+      customTooltip.style.top = `${top}px`;
+    }
+
+    function hideCustomTooltip() {
+      tooltipTimeout = setTimeout(() => {
+        customTooltip.classList.remove('visible');
+      }, 100);
+    }
+
+    // Decode base64 tooltip text
+    function decodeTooltip(b64) {
+      try {
+        return decodeURIComponent(escape(atob(b64)));
+      } catch (e) {
+        return '';
+      }
+    }
+
+    // Event delegation for tooltip handling
+    document.addEventListener('mouseover', (e) => {
+      // Support both plain data-tooltip and base64-encoded data-tooltip-b64
+      const tooltipElement = e.target.closest('[data-tooltip-b64], [data-tooltip]');
+      if (tooltipElement) {
+        const text = tooltipElement.dataset.tooltipB64
+          ? decodeTooltip(tooltipElement.dataset.tooltipB64)
+          : tooltipElement.dataset.tooltip;
+        showCustomTooltip(tooltipElement, text);
+      }
+    });
+
+    document.addEventListener('mouseout', (e) => {
+      const tooltipElement = e.target.closest('[data-tooltip-b64], [data-tooltip]');
+      if (tooltipElement) {
+        hideCustomTooltip();
+      }
     });
 
     // Initial render with migration check

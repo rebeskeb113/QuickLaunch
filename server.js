@@ -386,34 +386,47 @@ function countPendingTodos() {
     const itemsWithPriority = [];
 
     let currentPriority = 'Medium'; // Default priority
+    let currentSection = null; // Track current ### subsection for context
     let inNextSession = false; // Track if we're in "Next Session" section
     let inParkingLot = false; // Track if we're in "Parking Lot" section
     let inSupportCodes = false; // Track if we're past the main TODO sections
 
-    for (const line of lines) {
+    for (let i = 0; i < lines.length; i++) {
+      const line = lines[i];
+      // Track ### subsections (like "### Log Viewer") for tooltip context
+      const subsectionMatch = line.match(/^###\s+(.+)/);
+      if (subsectionMatch) {
+        currentSection = subsectionMatch[1].trim();
+      }
+
       // Track priority sections (## headings)
       if (line.match(/^##\s+High\s+Priority/i)) {
         currentPriority = 'High';
+        currentSection = null;
         inNextSession = false;
         inParkingLot = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Medium\s+Priority/i)) {
         currentPriority = 'Medium';
+        currentSection = null;
         inNextSession = false;
         inParkingLot = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Low\s+Priority/i)) {
         currentPriority = 'Low';
+        currentSection = null;
         inNextSession = false;
         inParkingLot = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Next\s+Session/i)) {
         // Items marked for implementation go here
+        currentSection = null;
         inNextSession = true;
         inParkingLot = false;
         inSupportCodes = false;
       } else if (line.match(/^##\s+Parking\s+Lot/i)) {
         // Items explicitly parked by user
+        currentSection = null;
         inParkingLot = true;
         inNextSession = false;
         inSupportCodes = false;
@@ -425,7 +438,6 @@ function countPendingTodos() {
         // Don't reset priority, just mark as support codes section
         inSupportCodes = true;
       }
-      // Note: ### subsections (like "### Log Viewer") don't change priority
 
       // Skip items in support codes or reference sections
       if (inSupportCodes) continue;
@@ -434,10 +446,22 @@ function countPendingTodos() {
       if (line.match(/^[\s]*-\s*\[\s\]/)) {
         const item = line.replace(/^[\s]*-\s*\[\s\]\s*/, '').trim();
         if (item) {
+          // Look ahead for description on next line (format: "  > description")
+          let description = null;
+          if (i < lines.length - 1) {
+            const nextLine = lines[i + 1];
+            const descMatch = nextLine.match(/^\s*>\s*(.+)/);
+            if (descMatch) {
+              description = descMatch[1].trim();
+            }
+          }
+
           pendingItems.push(item);
           itemsWithPriority.push({
             text: item,
             priority: currentPriority,
+            section: currentSection, // Parent section for tooltip context
+            description: description, // 6th-grader friendly explanation
             markedForImplement: inNextSession, // Flag items already in Next Session
             markedParking: inParkingLot // Flag items explicitly parked by user
           });
@@ -457,6 +481,8 @@ function countPendingTodos() {
           itemsWithPriority.push({
             text: `[Auto] ${item}`,
             priority: 'High', // Auto-detected issues are high priority
+            section: 'Auto-Detected Issues',
+            description: 'Automatically detected issue that needs attention',
             markedForImplement: false,
             markedParking: false
           });
