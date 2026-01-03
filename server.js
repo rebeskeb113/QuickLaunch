@@ -2027,19 +2027,17 @@ app.post('/api/start', async (req, res) => {
 
   try {
     // Parse command - support "npm run dev" style commands
+    const isWindows = process.platform === 'win32';
     const parts = command.split(' ');
     const cmd = parts[0];
     const args = parts.slice(1);
 
-    // Use shell on Windows for npm/npx commands (they need .cmd extension resolution)
-    // But NOT for node commands (they work better without shell wrapper)
-    const isWindows = process.platform === 'win32';
-    const needsShell = isWindows && (cmd === 'npm' || cmd === 'npx');
     const proc = spawn(cmd, args, {
       cwd: appPath,
-      shell: needsShell,
+      shell: isWindows,
       stdio: ['ignore', 'pipe', 'pipe'],
-      detached: false
+      detached: false,
+      windowsHide: true
     });
 
     // Track logs for this process

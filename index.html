@@ -117,6 +117,11 @@
       margin-bottom: 16px;
     }
 
+    /* Remove app-port margin when followed by sync-status */
+    .app-port:has(+ .sync-status) {
+      margin-bottom: 2px;
+    }
+
     .status-indicator {
       width: 8px;
       height: 8px;
@@ -129,6 +134,38 @@
     .status-indicator.online {
       background: #00ff88;
       box-shadow: 0 0 10px rgba(0, 255, 136, 0.5);
+    }
+
+    /* Sync Status Line */
+    .sync-status {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 0.75rem;
+      margin-top: 0;
+      margin-bottom: 14px;
+      gap: 4px;
+    }
+
+    .sync-status.active {
+      color: #00ff88;
+    }
+
+    .sync-status.inactive {
+      color: #666;
+    }
+
+    .sync-indicator {
+      width: 6px;
+      height: 6px;
+      border-radius: 50%;
+      display: inline-block;
+      background: #666;
+    }
+
+    .sync-indicator.online {
+      background: #00ff88;
+      box-shadow: 0 0 8px rgba(0, 255, 136, 0.5);
     }
 
     /* Toggle Switch */
@@ -2077,8 +2114,8 @@
         // Show auto-restart indicator if enabled
         const autoRestartBadge = app.autoRestart ? '<span class="auto-restart-badge" title="Auto-restart enabled">↻</span>' : '';
 
-        // Scheduled app indicator
-        const scheduleBadge = isScheduledApp ? '<span class="auto-restart-badge" title="Scheduled task">⏰</span>' : '';
+        // Scheduled app indicator (disabled - clutters title)
+        const scheduleBadge = '';
 
         const card = document.createElement('div');
 
@@ -2086,11 +2123,15 @@
           // HYBRID APP: Has both app server AND scheduled sync (like MealTrack)
           const scheduleEnabled = app.scheduleEnabled || false;
           const isScheduleRunning = statusInfo?.scheduleRunning || false;
+          const scheduleTime = app.schedule || '';
+          const syncStatusText = scheduleEnabled
+            ? `<span class="sync-status active"><span class="sync-indicator online"></span> Sync: ${scheduleTime} daily</span>`
+            : `<span class="sync-status inactive"><span class="sync-indicator"></span> Sync: Off</span>`;
 
           card.className = `app-card${isRunning ? ' running' : ''}${isFailed ? ' failed' : ''}${isRestarting ? ' restarting' : ''}`;
           card.innerHTML = `
             <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
-            <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${isRunning ? 'cursor: pointer;' : 'opacity: 0.6; cursor: not-allowed;'}"
+            <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${isRunning ? 'cursor: pointer;' : 'cursor: not-allowed;'}"
                  onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
                  title="${isRunning ? 'Open in browser' : 'Start the app first'}">
               ${app.icon || '🚀'}
@@ -2102,31 +2143,15 @@
               :${app.port}
               ${statusBadge}
             </div>
-            <div class="dual-toggle-container">
-              <div class="toggle-group">
-                <span class="toggle-group-label">App</span>
-                <div class="toggle-container">
-                  <span class="toggle-label">Off</span>
-                  <label class="toggle${isStarting || isRestarting ? ' loading' : ''}">
-                    <input type="checkbox" ${isRunning || isStarting || isRestarting ? 'checked' : ''} ${isStarting || isRestarting ? 'disabled' : ''}
-                           onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span class="toggle-label">On</span>
-                </div>
-              </div>
-              <div class="toggle-group">
-                <span class="toggle-group-label">Sync</span>
-                <div class="toggle-container">
-                  <span class="toggle-label">Off</span>
-                  <label class="toggle${isScheduleRunning ? ' loading' : ''}">
-                    <input type="checkbox" ${scheduleEnabled ? 'checked' : ''} ${isScheduleRunning ? 'disabled' : ''}
-                           onchange="handleScheduleToggle('${app.id}', '${app.name}', this)">
-                    <span class="toggle-slider"></span>
-                  </label>
-                  <span class="toggle-label">On</span>
-                </div>
-              </div>
+            ${syncStatusText}
+            <div class="toggle-container">
+              <span class="toggle-label">Off</span>
+              <label class="toggle${isStarting || isRestarting ? ' loading' : ''}">
+                <input type="checkbox" ${isRunning || isStarting || isRestarting ? 'checked' : ''} ${isStarting || isRestarting ? 'disabled' : ''}
+                       onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">On</span>
             </div>
           `;
         } else if (isScheduledApp) {
@@ -2137,7 +2162,7 @@
           card.className = `app-card${scheduleEnabled ? ' running' : ''}${isFailed ? ' failed' : ''}${isRunning ? ' restarting' : ''}`;
           card.innerHTML = `
             <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
-            <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${canRunManually ? 'cursor: pointer;' : 'opacity: 0.6; cursor: not-allowed;'}"
+            <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${canRunManually ? 'cursor: pointer;' : 'cursor: not-allowed;'}"
                  onclick="${canRunManually ? `handleManualRun('${app.id}', '${app.name}')` : ''}"
                  title="${canRunManually ? 'Click to run manually (off-schedule)' : (isRunning ? 'Currently running...' : 'Enable scheduler first')}">
               ${app.icon || '🚀'}
