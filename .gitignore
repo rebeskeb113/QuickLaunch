@@ -3,3 +3,5 @@ node_modules/
 Thumbs.db
 quicklaunch-troubleshoot.log
 quicklaunch-resolutions.log
+TODO.md
+schedule-state.json
