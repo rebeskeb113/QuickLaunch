@@ -255,6 +255,10 @@ async function executeScheduledApp(appId, appConfig, isManual = false) {
 
   const logs = [];
 
+  // Use a separate key for sync processes so they don't conflict with the main app
+  // For hybrid apps (with both command and scheduleCommand), use appId:sync
+  const processKey = appConfig.scheduleCommand ? `${appId}:sync` : appId;
+
   proc.stdout.on('data', (data) => {
     const line = data.toString().trim();
     console.log(`[${appConfig.name}] ${line}`);
@@ -285,8 +289,8 @@ async function executeScheduledApp(appId, appConfig, isManual = false) {
     state[appId].wasManual = isManual;
     saveScheduleState(state);
 
-    // Update running processes status
-    const info = runningProcesses.get(appId);
+    // Update running processes status (use processKey, not appId)
+    const info = runningProcesses.get(processKey);
     if (info) {
       info.status = code === 0 ? 'completed' : 'failed';
       info.exitCode = code;
@@ -294,20 +298,21 @@ async function executeScheduledApp(appId, appConfig, isManual = false) {
     }
   });
 
-  // Track as running process
-  runningProcesses.set(appId, {
+  // Track as running process (use processKey to avoid conflict with main app)
+  runningProcesses.set(processKey, {
     process: proc,
-    port: appConfig.port || 0,
-    name: appConfig.name,
+    port: 0, // Sync processes don't use ports
+    name: `${appConfig.name} (sync)`,
     logs,
     startTime: Date.now(),
     status: 'running',
     appConfig,
     isScheduled: !isManual,
-    isManual: isManual
+    isManual: isManual,
+    isSyncProcess: true
   });
 
-  return { success: true, pid: proc.pid };
+  return { success: true, pid: proc.pid, processKey };
 }
 
 // Set up a scheduled job for an app
@@ -1342,6 +1347,17 @@ async function waitForHealthy(port, options = {}) {
     timedOut: true
   };
 }
+
+// CORS - Allow MealTrack and other local apps to call QuickLaunch API
+app.use((req, res, next) => {
+  res.header('Access-Control-Allow-Origin', '*');
+  res.header('Access-Control-Allow-Methods', 'GET, POST, PUT, DELETE, OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type');
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+  next();
+});
 
 app.use(express.json());
 app.use(express.static(__dirname));
@@ -2424,10 +2440,11 @@ app.post('/api/schedule/:id/run', async (req, res) => {
     });
   }
 
-  // Check if already running
-  const existingProcess = runningProcesses.get(id);
+  // Check if sync is already running (use sync-specific key for hybrid apps)
+  const syncProcessKey = appConfig.scheduleCommand ? `${id}:sync` : id;
+  const existingProcess = runningProcesses.get(syncProcessKey);
   if (existingProcess && existingProcess.status === 'running') {
-    return res.status(400).json({ error: 'App is already running' });
+    return res.status(400).json({ error: 'Sync is already running' });
   }
 
   try {
@@ -2436,7 +2453,8 @@ app.post('/api/schedule/:id/run', async (req, res) => {
       success: true,
       message: `Manual (off-schedule) run started for ${appConfig.name}`,
       isManual: true,
-      pid: result.pid
+      pid: result.pid,
+      processKey: result.processKey
     });
   } catch (err) {
     res.status(500).json({ error: err.message });
@@ -2447,9 +2465,26 @@ app.post('/api/schedule/:id/run', async (req, res) => {
 app.get('/api/schedule/:id/status', (req, res) => {
   const { id } = req.params;
 
-  const processInfo = runningProcesses.get(id);
+  // For hybrid apps, check the sync-specific process key first
+  const config = loadAppsConfig();
+  const appConfig = config.apps.find(app => app.id === id);
+  const syncProcessKey = appConfig?.scheduleCommand ? `${id}:sync` : id;
+
+  // Check sync process first (for hybrid apps), then fall back to main app id
+  let processInfo = runningProcesses.get(syncProcessKey);
+  if (!processInfo && syncProcessKey !== id) {
+    processInfo = runningProcesses.get(id);
+  }
+
   if (!processInfo) {
-    return res.json({ status: 'not_running' });
+    // No running process, return state info only
+    const state = loadScheduleState();
+    const appState = state[id] || {};
+    return res.json({
+      status: 'not_running',
+      lastRun: appState.lastRun || null,
+      lastExitCode: appState.lastExitCode
+    });
   }
 
   const state = loadScheduleState();
@@ -2460,6 +2495,7 @@ app.get('/api/schedule/:id/status', (req, res) => {
     exitCode: processInfo.exitCode,
     startTime: processInfo.startTime,
     isManual: processInfo.isManual || false,
+    isSyncProcess: processInfo.isSyncProcess || false,
     lastRun: appState.lastRun || null,
     lastExitCode: appState.lastExitCode,
     logs: processInfo.logs?.slice(-20) || [] // Last 20 log lines
