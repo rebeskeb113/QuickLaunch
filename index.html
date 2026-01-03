@@ -207,6 +207,33 @@
       50% { opacity: 0.5; }
     }
 
+    /* Dual toggle layout for hybrid apps (app + schedule) */
+    .dual-toggle-container {
+      display: flex;
+      justify-content: center;
+      gap: 24px;
+      margin-top: 12px;
+    }
+
+    .toggle-group {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 4px;
+    }
+
+    .toggle-group-label {
+      font-size: 10px;
+      color: #8892b0;
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      font-weight: 500;
+    }
+
+    .toggle-group .toggle-container {
+      margin-top: 0;
+    }
+
     .add-app {
       border: 2px dashed rgba(255, 255, 255, 0.2);
       background: transparent;
@@ -2027,47 +2054,139 @@
         const isStarting = statusInfo?.status === 'starting';
         const isRestarting = statusInfo?.status === 'restarting';
         const isFailed = statusInfo?.status === 'failed';
+        const isCompleted = statusInfo?.status === 'completed';
         const colors = app.colors || randomColors();
+
+        // Check if this is a scheduled app (has schedule defined)
+        const isScheduledApp = !!app.schedule;
+        // Check if this is a hybrid app (has both port AND schedule - like MealTrack)
+        const isHybridApp = app.port > 0 && isScheduledApp;
 
         // Determine status badge
         let statusBadge = '';
         if (isRestarting) {
           statusBadge = '<div class="status-badge restarting">Restarting...</div>';
-        } else if (isStarting) {
-          statusBadge = '<div class="status-badge starting">Starting...</div>';
+        } else if (isStarting || (isScheduledApp && isRunning)) {
+          statusBadge = `<div class="status-badge starting">${isScheduledApp ? 'Running...' : 'Starting...'}</div>`;
         } else if (isFailed) {
           statusBadge = '<div class="status-badge failed">Failed</div>';
+        } else if (isScheduledApp && isCompleted) {
+          statusBadge = '<div class="status-badge" style="background: rgba(0, 255, 136, 0.2); color: #00ff88;">Completed</div>';
         }
 
         // Show auto-restart indicator if enabled
         const autoRestartBadge = app.autoRestart ? '<span class="auto-restart-badge" title="Auto-restart enabled">↻</span>' : '';
 
+        // Scheduled app indicator
+        const scheduleBadge = isScheduledApp ? '<span class="auto-restart-badge" title="Scheduled task">⏰</span>' : '';
+
         const card = document.createElement('div');
-        card.className = `app-card${isRunning ? ' running' : ''}${isFailed ? ' failed' : ''}${isRestarting ? ' restarting' : ''}`;
-        card.innerHTML = `
-          <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
-          <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}"
-               onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
-               title="${isRunning ? 'Open in browser' : 'Start the app first'}">
-            ${app.icon || '🚀'}
-          </div>
-          <div class="app-name">${app.name}${autoRestartBadge}</div>
-          ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
-          <div class="app-port">
-            <span class="status-indicator ${isRunning ? 'online' : ''}"></span>
-            :${app.port}
-            ${statusBadge}
-          </div>
-          <div class="toggle-container">
-            <span class="toggle-label">Off</span>
-            <label class="toggle${isStarting || isRestarting ? ' loading' : ''}">
-              <input type="checkbox" ${isRunning || isStarting || isRestarting ? 'checked' : ''} ${isStarting || isRestarting ? 'disabled' : ''}
-                     onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
-              <span class="toggle-slider"></span>
-            </label>
-            <span class="toggle-label">On</span>
-          </div>
-        `;
+
+        if (isHybridApp) {
+          // HYBRID APP: Has both app server AND scheduled sync (like MealTrack)
+          const scheduleEnabled = app.scheduleEnabled || false;
+          const isScheduleRunning = statusInfo?.scheduleRunning || false;
+
+          card.className = `app-card${isRunning ? ' running' : ''}${isFailed ? ' failed' : ''}${isRestarting ? ' restarting' : ''}`;
+          card.innerHTML = `
+            <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
+            <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${isRunning ? 'cursor: pointer;' : 'opacity: 0.6; cursor: not-allowed;'}"
+                 onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
+                 title="${isRunning ? 'Open in browser' : 'Start the app first'}">
+              ${app.icon || '🚀'}
+            </div>
+            <div class="app-name">${app.name}${scheduleBadge}</div>
+            ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
+            <div class="app-port">
+              <span class="status-indicator ${isRunning ? 'online' : ''}"></span>
+              :${app.port}
+              ${statusBadge}
+            </div>
+            <div class="dual-toggle-container">
+              <div class="toggle-group">
+                <span class="toggle-group-label">App</span>
+                <div class="toggle-container">
+                  <span class="toggle-label">Off</span>
+                  <label class="toggle${isStarting || isRestarting ? ' loading' : ''}">
+                    <input type="checkbox" ${isRunning || isStarting || isRestarting ? 'checked' : ''} ${isStarting || isRestarting ? 'disabled' : ''}
+                           onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="toggle-label">On</span>
+                </div>
+              </div>
+              <div class="toggle-group">
+                <span class="toggle-group-label">Sync</span>
+                <div class="toggle-container">
+                  <span class="toggle-label">Off</span>
+                  <label class="toggle${isScheduleRunning ? ' loading' : ''}">
+                    <input type="checkbox" ${scheduleEnabled ? 'checked' : ''} ${isScheduleRunning ? 'disabled' : ''}
+                           onchange="handleScheduleToggle('${app.id}', '${app.name}', this)">
+                    <span class="toggle-slider"></span>
+                  </label>
+                  <span class="toggle-label">On</span>
+                </div>
+              </div>
+            </div>
+          `;
+        } else if (isScheduledApp) {
+          // SCHEDULED APP: Toggle controls scheduler, icon triggers manual run
+          const scheduleEnabled = app.scheduleEnabled || false;
+          const canRunManually = scheduleEnabled && !isRunning;
+
+          card.className = `app-card${scheduleEnabled ? ' running' : ''}${isFailed ? ' failed' : ''}${isRunning ? ' restarting' : ''}`;
+          card.innerHTML = `
+            <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
+            <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${canRunManually ? 'cursor: pointer;' : 'opacity: 0.6; cursor: not-allowed;'}"
+                 onclick="${canRunManually ? `handleManualRun('${app.id}', '${app.name}')` : ''}"
+                 title="${canRunManually ? 'Click to run manually (off-schedule)' : (isRunning ? 'Currently running...' : 'Enable scheduler first')}">
+              ${app.icon || '🚀'}
+            </div>
+            <div class="app-name">${app.name}${scheduleBadge}</div>
+            ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
+            <div class="app-port">
+              <span class="status-indicator ${scheduleEnabled ? 'online' : ''}"></span>
+              ${app.port ? ':' + app.port : 'scheduled'}
+              ${statusBadge}
+            </div>
+            <div class="toggle-container">
+              <span class="toggle-label">Off</span>
+              <label class="toggle${isRunning ? ' loading' : ''}">
+                <input type="checkbox" ${scheduleEnabled ? 'checked' : ''} ${isRunning ? 'disabled' : ''}
+                       onchange="handleScheduleToggle('${app.id}', '${app.name}', this)">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">On</span>
+            </div>
+          `;
+        } else {
+          // REGULAR APP: Toggle starts/stops the app
+          card.className = `app-card${isRunning ? ' running' : ''}${isFailed ? ' failed' : ''}${isRestarting ? ' restarting' : ''}`;
+          card.innerHTML = `
+            <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
+            <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}"
+                 onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
+                 title="${isRunning ? 'Open in browser' : 'Start the app first'}">
+              ${app.icon || '🚀'}
+            </div>
+            <div class="app-name">${app.name}${autoRestartBadge}</div>
+            ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
+            <div class="app-port">
+              <span class="status-indicator ${isRunning ? 'online' : ''}"></span>
+              :${app.port}
+              ${statusBadge}
+            </div>
+            <div class="toggle-container">
+              <span class="toggle-label">Off</span>
+              <label class="toggle${isStarting || isRestarting ? ' loading' : ''}">
+                <input type="checkbox" ${isRunning || isStarting || isRestarting ? 'checked' : ''} ${isStarting || isRestarting ? 'disabled' : ''}
+                       onchange="handleToggle(${JSON.stringify(app).replace(/"/g, '&quot;')}, this)">
+                <span class="toggle-slider"></span>
+              </label>
+              <span class="toggle-label">On</span>
+            </div>
+          `;
+        }
         grid.appendChild(card);
       }
 
@@ -2080,6 +2199,131 @@
         <div class="app-name">Add App</div>
       `;
       grid.appendChild(addCard);
+    }
+
+    // Handle schedule toggle (for scheduled apps)
+    async function handleScheduleToggle(appId, appName, checkbox) {
+      const toggle = checkbox.closest('.toggle');
+      toggle.classList.add('loading');
+      checkbox.disabled = true;
+
+      const enabled = checkbox.checked;
+
+      try {
+        const response = await fetch(`/api/schedule/${appId}/enable`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ enabled })
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to update schedule');
+        }
+
+        // Show appropriate toast based on whether it already ran today
+        showToast({
+          type: enabled ? 'success' : 'warning',
+          title: enabled ? `${appName} Scheduler Enabled` : `${appName} Scheduler Disabled`,
+          message: result.message
+        });
+
+      } catch (err) {
+        console.error('Failed to toggle schedule:', err);
+        showToast({
+          type: 'error',
+          title: 'Schedule Toggle Failed',
+          message: err.message
+        });
+        // Revert checkbox state
+        checkbox.checked = !enabled;
+      }
+
+      toggle.classList.remove('loading');
+      checkbox.disabled = false;
+      await renderApps();
+    }
+
+    // Handle manual run of scheduled app
+    async function handleManualRun(appId, appName) {
+      // Show starting toast
+      showToast({
+        type: 'warning',
+        title: `${appName} - Manual Run`,
+        message: 'Starting off-schedule run...'
+      });
+
+      try {
+        const response = await fetch(`/api/schedule/${appId}/run`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' }
+        });
+
+        const result = await response.json();
+
+        if (!response.ok) {
+          throw new Error(result.error || 'Failed to start manual run');
+        }
+
+        showToast({
+          type: 'success',
+          title: `${appName} - Manual Run Started`,
+          message: result.message
+        });
+
+        // Start polling for completion
+        pollForCompletion(appId, appName);
+
+      } catch (err) {
+        console.error('Failed to start manual run:', err);
+        showToast({
+          type: 'error',
+          title: 'Manual Run Failed',
+          message: err.message
+        });
+      }
+
+      await renderApps();
+    }
+
+    // Poll for scheduled app completion
+    async function pollForCompletion(appId, appName) {
+      const maxPolls = 300; // 5 minutes (1 second intervals)
+      let pollCount = 0;
+
+      const poll = async () => {
+        try {
+          const response = await fetch(`/api/schedule/${appId}/status`);
+          const status = await response.json();
+
+          if (status.status === 'completed') {
+            showToast({
+              type: 'success',
+              title: `${appName} - Completed`,
+              message: 'Manual run completed successfully!'
+            });
+            await renderApps();
+            return;
+          } else if (status.status === 'failed') {
+            showToast({
+              type: 'error',
+              title: `${appName} - Failed`,
+              message: `Manual run failed with exit code ${status.exitCode}`
+            });
+            await renderApps();
+            return;
+          } else if (status.status === 'running' && pollCount < maxPolls) {
+            pollCount++;
+            setTimeout(poll, 1000);
+          }
+        } catch (err) {
+          console.error('Poll error:', err);
+        }
+      };
+
+      // Start polling after a short delay
+      setTimeout(poll, 2000);
     }
 
     // Modal functions

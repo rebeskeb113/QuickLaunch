@@ -86,6 +86,14 @@
 - [ ] Customizable card colors per app
   > Pick your own colors for each app card, like giving each app its own personality
 
+## Auto-Detected Issues (from troubleshooting log)
+
+### [2026-01-02] MealTrack - Recurring CRASH (Auto-detected)
+- Failed 6 times in the last 7 days
+- Primary issue: CRASH (6 occurrences)
+- **Suggested fix:** Investigate crash cause - may be a code bug, memory issue, or configuration problem.
+- Pattern: App crashed 6 times. Check for code errors or resource issues.
+
 ## Support Codes Reference
 
 | Code | Issue | Resolution |

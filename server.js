@@ -3,6 +3,7 @@ const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const treeKill = require('tree-kill');
+const schedule = require('node-schedule');
 
 const app = express();
 const PORT = 8000;
@@ -22,6 +23,10 @@ const LOG_FILE = path.join(__dirname, 'quicklaunch-troubleshoot.log');
 const TODO_FILE = path.join(__dirname, 'TODO.md');
 const RESOLUTIONS_FILE = path.join(__dirname, 'quicklaunch-resolutions.log');
 const APPS_FILE = path.join(__dirname, 'apps.json');
+const SCHEDULE_STATE_FILE = path.join(__dirname, 'schedule-state.json');
+
+// Track active scheduled jobs: { appId: job }
+const scheduledJobs = new Map();
 
 // ========== APPS.JSON MANAGEMENT ==========
 // apps.json is the source of truth for app definitions and port reservations
@@ -113,6 +118,246 @@ function suggestAvailablePort(basePort = 5174) {
 // Generate unique ID for new apps
 function generateAppId() {
   return 'app_' + Date.now().toString(36) + Math.random().toString(36).substr(2);
+}
+
+// ========== SCHEDULER MANAGEMENT ==========
+// Handles scheduled task execution (e.g., daily syncs)
+
+// Load schedule state (last run times, enabled status)
+function loadScheduleState() {
+  try {
+    if (!fs.existsSync(SCHEDULE_STATE_FILE)) {
+      return {};
+    }
+    const content = fs.readFileSync(SCHEDULE_STATE_FILE, 'utf8');
+    return JSON.parse(content);
+  } catch (err) {
+    console.error('Failed to load schedule state:', err.message);
+    return {};
+  }
+}
+
+// Save schedule state
+function saveScheduleState(state) {
+  try {
+    fs.writeFileSync(SCHEDULE_STATE_FILE, JSON.stringify(state, null, 2));
+    return true;
+  } catch (err) {
+    console.error('Failed to save schedule state:', err.message);
+    return false;
+  }
+}
+
+// Check if a scheduled task was missed (should run on startup)
+function checkMissedSchedule(appId, appConfig) {
+  if (!appConfig.schedule || !appConfig.scheduleEnabled) return false;
+  if (!appConfig.runIfMissed) return false;
+
+  const state = loadScheduleState();
+  const appState = state[appId];
+
+  if (!appState || !appState.lastRun) {
+    // Never run before - consider it missed if schedule time has passed today
+    return hasScheduleTimePassedToday(appConfig.schedule);
+  }
+
+  const lastRun = new Date(appState.lastRun);
+  const now = new Date();
+
+  // Check if we missed today's scheduled run
+  if (lastRun.toDateString() !== now.toDateString()) {
+    // Last run was not today
+    return hasScheduleTimePassedToday(appConfig.schedule);
+  }
+
+  return false;
+}
+
+// Check if the scheduled time has passed today (for cron-like schedule)
+function hasScheduleTimePassedToday(cronSchedule) {
+  // Parse simple "HH:MM" format or cron format
+  const now = new Date();
+
+  // Handle "12:00" format
+  const timeMatch = cronSchedule.match(/^(\d{1,2}):(\d{2})$/);
+  if (timeMatch) {
+    const scheduleHour = parseInt(timeMatch[1]);
+    const scheduleMinute = parseInt(timeMatch[2]);
+    return now.getHours() > scheduleHour ||
+           (now.getHours() === scheduleHour && now.getMinutes() >= scheduleMinute);
+  }
+
+  // Handle cron format "0 12 * * *" (minute hour day month weekday)
+  const cronMatch = cronSchedule.match(/^(\d+)\s+(\d+)\s+/);
+  if (cronMatch) {
+    const scheduleMinute = parseInt(cronMatch[1]);
+    const scheduleHour = parseInt(cronMatch[2]);
+    return now.getHours() > scheduleHour ||
+           (now.getHours() === scheduleHour && now.getMinutes() >= scheduleMinute);
+  }
+
+  return false;
+}
+
+// Convert simple time format to cron
+function timeToCron(timeStr) {
+  // Handle "12:00" format -> "0 12 * * *"
+  const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
+  if (timeMatch) {
+    return `${parseInt(timeMatch[2])} ${parseInt(timeMatch[1])} * * *`;
+  }
+  // Already cron format
+  return timeStr;
+}
+
+// Get human-readable schedule description
+function getScheduleDescription(cronSchedule) {
+  const timeMatch = cronSchedule.match(/^(\d{1,2}):(\d{2})$/);
+  if (timeMatch) {
+    const hour = parseInt(timeMatch[1]);
+    const minute = timeMatch[2];
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+    return `Daily at ${hour12}:${minute} ${ampm}`;
+  }
+
+  const cronMatch = cronSchedule.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+\*$/);
+  if (cronMatch) {
+    const minute = cronMatch[1].padStart(2, '0');
+    const hour = parseInt(cronMatch[2]);
+    const ampm = hour >= 12 ? 'PM' : 'AM';
+    const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+    return `Daily at ${hour12}:${minute} ${ampm}`;
+  }
+
+  return cronSchedule;
+}
+
+// Execute a scheduled app (similar to manual start but fire-and-forget for one-shot tasks)
+async function executeScheduledApp(appId, appConfig, isManual = false) {
+  const runType = isManual ? 'manual (off-schedule)' : 'scheduled';
+  console.log(`[Scheduler] Running ${runType} task: ${appConfig.name}`);
+  logTroubleshoot(appConfig.name, 'info', `${isManual ? 'Manual' : 'Scheduled'} execution started`, { appId, isManual });
+
+  const isWindows = process.platform === 'win32';
+  // Use scheduleCommand if available (for hybrid apps), otherwise fall back to command
+  const commandToRun = appConfig.scheduleCommand || appConfig.command;
+  const parts = commandToRun.split(' ');
+  const cmd = parts[0];
+  const args = parts.slice(1);
+
+  const proc = spawn(cmd, args, {
+    cwd: appConfig.path,
+    shell: isWindows,
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false
+  });
+
+  const logs = [];
+
+  proc.stdout.on('data', (data) => {
+    const line = data.toString().trim();
+    console.log(`[${appConfig.name}] ${line}`);
+    logs.push({ type: 'stdout', text: line, time: Date.now() });
+  });
+
+  proc.stderr.on('data', (data) => {
+    const line = data.toString().trim();
+    console.error(`[${appConfig.name}] ${line}`);
+    logs.push({ type: 'stderr', text: line, time: Date.now() });
+  });
+
+  proc.on('error', (err) => {
+    console.error(`[${appConfig.name}] ${runType} execution failed:`, err.message);
+    logTroubleshoot(appConfig.name, 'error', `${isManual ? 'Manual' : 'Scheduled'} execution spawn failed`, { error: err.message, isManual });
+  });
+
+  proc.on('exit', (code) => {
+    console.log(`[Scheduler] ${appConfig.name} ${runType} run completed with exit code ${code}`);
+    logTroubleshoot(appConfig.name, code === 0 ? 'info' : 'error',
+      `${isManual ? 'Manual' : 'Scheduled'} execution completed`, { exitCode: code, isManual });
+
+    // Update last run time
+    const state = loadScheduleState();
+    if (!state[appId]) state[appId] = {};
+    state[appId].lastRun = new Date().toISOString();
+    state[appId].lastExitCode = code;
+    state[appId].wasManual = isManual;
+    saveScheduleState(state);
+
+    // Update running processes status
+    const info = runningProcesses.get(appId);
+    if (info) {
+      info.status = code === 0 ? 'completed' : 'failed';
+      info.exitCode = code;
+      info.completedAt = Date.now();
+    }
+  });
+
+  // Track as running process
+  runningProcesses.set(appId, {
+    process: proc,
+    port: appConfig.port || 0,
+    name: appConfig.name,
+    logs,
+    startTime: Date.now(),
+    status: 'running',
+    appConfig,
+    isScheduled: !isManual,
+    isManual: isManual
+  });
+
+  return { success: true, pid: proc.pid };
+}
+
+// Set up a scheduled job for an app
+function setupScheduledJob(appId, appConfig) {
+  // Cancel existing job if any
+  if (scheduledJobs.has(appId)) {
+    scheduledJobs.get(appId).cancel();
+    scheduledJobs.delete(appId);
+  }
+
+  if (!appConfig.schedule || !appConfig.scheduleEnabled) {
+    return null;
+  }
+
+  const cronSchedule = timeToCron(appConfig.schedule);
+
+  console.log(`[Scheduler] Setting up job for ${appConfig.name}: ${getScheduleDescription(appConfig.schedule)}`);
+
+  const job = schedule.scheduleJob(cronSchedule, () => {
+    console.log(`[Scheduler] Triggered: ${appConfig.name}`);
+    executeScheduledApp(appId, appConfig);
+  });
+
+  if (job) {
+    scheduledJobs.set(appId, job);
+    return job;
+  }
+
+  return null;
+}
+
+// Initialize all scheduled jobs on startup
+function initializeScheduledJobs() {
+  const config = loadAppsConfig();
+
+  console.log('[Scheduler] Initializing scheduled jobs...');
+
+  for (const appConfig of config.apps) {
+    if (appConfig.schedule && appConfig.scheduleEnabled) {
+      setupScheduledJob(appConfig.id, appConfig);
+
+      // Check for missed runs
+      if (checkMissedSchedule(appConfig.id, appConfig)) {
+        console.log(`[Scheduler] Missed run detected for ${appConfig.name}, executing now...`);
+        executeScheduledApp(appConfig.id, appConfig);
+      }
+    }
+  }
+
+  console.log(`[Scheduler] ${scheduledJobs.size} scheduled job(s) active`);
 }
 
 // ========== AUTO-RESTART MANAGEMENT ==========
@@ -1786,11 +2031,13 @@ app.post('/api/start', async (req, res) => {
     const cmd = parts[0];
     const args = parts.slice(1);
 
-    // Use shell on Windows for npm commands
+    // Use shell on Windows for npm/npx commands (they need .cmd extension resolution)
+    // But NOT for node commands (they work better without shell wrapper)
     const isWindows = process.platform === 'win32';
+    const needsShell = isWindows && (cmd === 'npm' || cmd === 'npx');
     const proc = spawn(cmd, args, {
       cwd: appPath,
-      shell: isWindows,
+      shell: needsShell,
       stdio: ['ignore', 'pipe', 'pipe'],
       detached: false
     });
@@ -2060,6 +2307,237 @@ function getSupportCode(error) {
   }
 }
 
+// ========== SCHEDULE API ENDPOINTS ==========
+
+// GET /api/schedule/:id - Get schedule info for an app
+app.get('/api/schedule/:id', (req, res) => {
+  const { id } = req.params;
+  const config = loadAppsConfig();
+  const appConfig = config.apps.find(app => app.id === id);
+
+  if (!appConfig) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  const state = loadScheduleState();
+  const appState = state[id] || {};
+  const isJobActive = scheduledJobs.has(id);
+
+  res.json({
+    schedule: appConfig.schedule || null,
+    scheduleEnabled: appConfig.scheduleEnabled || false,
+    runIfMissed: appConfig.runIfMissed || false,
+    scheduleDescription: appConfig.schedule ? getScheduleDescription(appConfig.schedule) : null,
+    lastRun: appState.lastRun || null,
+    lastExitCode: appState.lastExitCode,
+    isJobActive,
+    nextRun: isJobActive && scheduledJobs.get(id).nextInvocation()
+      ? scheduledJobs.get(id).nextInvocation().toISOString()
+      : null
+  });
+});
+
+// Check if schedule ran today
+function hasRunToday(appId) {
+  const state = loadScheduleState();
+  const appState = state[appId];
+  if (!appState || !appState.lastRun) return false;
+
+  const lastRun = new Date(appState.lastRun);
+  const now = new Date();
+  return lastRun.toDateString() === now.toDateString();
+}
+
+// POST /api/schedule/:id/enable - Enable/disable schedule for an app
+app.post('/api/schedule/:id/enable', (req, res) => {
+  const { id } = req.params;
+  const { enabled } = req.body;
+
+  const config = loadAppsConfig();
+  const appIndex = config.apps.findIndex(app => app.id === id);
+
+  if (appIndex === -1) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  const appConfig = config.apps[appIndex];
+
+  // Must have a schedule defined to enable
+  if (enabled && !appConfig.schedule) {
+    return res.status(400).json({ error: 'No schedule defined for this app' });
+  }
+
+  // Update enabled status
+  config.apps[appIndex].scheduleEnabled = enabled;
+
+  if (saveAppsConfig(config)) {
+    // Set up or cancel the job
+    if (enabled) {
+      setupScheduledJob(id, config.apps[appIndex]);
+      console.log(`[Scheduler] Enabled schedule for ${appConfig.name}`);
+    } else {
+      if (scheduledJobs.has(id)) {
+        scheduledJobs.get(id).cancel();
+        scheduledJobs.delete(id);
+      }
+      console.log(`[Scheduler] Disabled schedule for ${appConfig.name}`);
+    }
+
+    const state = loadScheduleState();
+    const appState = state[id] || {};
+    const ranToday = hasRunToday(id);
+
+    res.json({
+      success: true,
+      scheduleEnabled: enabled,
+      schedule: appConfig.schedule,
+      scheduleDescription: getScheduleDescription(appConfig.schedule),
+      lastRun: appState.lastRun || null,
+      lastExitCode: appState.lastExitCode,
+      ranToday: ranToday,
+      isJobActive: scheduledJobs.has(id),
+      message: enabled
+        ? (ranToday
+          ? `Scheduler enabled. Already ran today at ${new Date(appState.lastRun).toLocaleTimeString()}. Next run tomorrow.`
+          : `Scheduler enabled. Will run at ${getScheduleDescription(appConfig.schedule)}.`)
+        : 'Scheduler disabled.'
+    });
+  } else {
+    res.status(500).json({ error: 'Failed to save configuration' });
+  }
+});
+
+// POST /api/schedule/:id/run - Manually run a scheduled app (must be enabled)
+app.post('/api/schedule/:id/run', async (req, res) => {
+  const { id } = req.params;
+
+  const config = loadAppsConfig();
+  const appConfig = config.apps.find(app => app.id === id);
+
+  if (!appConfig) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  // Must have schedule enabled to run manually
+  if (!appConfig.scheduleEnabled) {
+    return res.status(400).json({
+      error: 'Schedule must be enabled to run this app',
+      hint: 'Turn the scheduler ON first, then you can run manually'
+    });
+  }
+
+  // Check if already running
+  const existingProcess = runningProcesses.get(id);
+  if (existingProcess && existingProcess.status === 'running') {
+    return res.status(400).json({ error: 'App is already running' });
+  }
+
+  try {
+    const result = await executeScheduledApp(id, appConfig, true); // isManual = true
+    res.json({
+      success: true,
+      message: `Manual (off-schedule) run started for ${appConfig.name}`,
+      isManual: true,
+      pid: result.pid
+    });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
+
+// GET /api/schedule/:id/status - Get status of a running scheduled app
+app.get('/api/schedule/:id/status', (req, res) => {
+  const { id } = req.params;
+
+  const processInfo = runningProcesses.get(id);
+  if (!processInfo) {
+    return res.json({ status: 'not_running' });
+  }
+
+  const state = loadScheduleState();
+  const appState = state[id] || {};
+
+  res.json({
+    status: processInfo.status,
+    exitCode: processInfo.exitCode,
+    startTime: processInfo.startTime,
+    isManual: processInfo.isManual || false,
+    lastRun: appState.lastRun || null,
+    lastExitCode: appState.lastExitCode,
+    logs: processInfo.logs?.slice(-20) || [] // Last 20 log lines
+  });
+});
+
+// PUT /api/schedule/:id - Update schedule settings for an app
+app.put('/api/schedule/:id', (req, res) => {
+  const { id } = req.params;
+  const { schedule: newSchedule, runIfMissed } = req.body;
+
+  const config = loadAppsConfig();
+  const appIndex = config.apps.findIndex(app => app.id === id);
+
+  if (appIndex === -1) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  // Update schedule settings
+  if (newSchedule !== undefined) {
+    config.apps[appIndex].schedule = newSchedule;
+  }
+  if (runIfMissed !== undefined) {
+    config.apps[appIndex].runIfMissed = runIfMissed;
+  }
+
+  if (saveAppsConfig(config)) {
+    // Re-setup job if enabled
+    if (config.apps[appIndex].scheduleEnabled) {
+      setupScheduledJob(id, config.apps[appIndex]);
+    }
+
+    res.json({
+      success: true,
+      schedule: config.apps[appIndex].schedule,
+      scheduleDescription: config.apps[appIndex].schedule
+        ? getScheduleDescription(config.apps[appIndex].schedule)
+        : null,
+      runIfMissed: config.apps[appIndex].runIfMissed
+    });
+  } else {
+    res.status(500).json({ error: 'Failed to save configuration' });
+  }
+});
+
+// GET /api/schedules - Get all scheduled apps status
+app.get('/api/schedules', (req, res) => {
+  const config = loadAppsConfig();
+  const state = loadScheduleState();
+
+  const schedules = config.apps
+    .filter(app => app.schedule)
+    .map(app => {
+      const appState = state[app.id] || {};
+      const isJobActive = scheduledJobs.has(app.id);
+      const job = scheduledJobs.get(app.id);
+
+      return {
+        id: app.id,
+        name: app.name,
+        schedule: app.schedule,
+        scheduleDescription: getScheduleDescription(app.schedule),
+        scheduleEnabled: app.scheduleEnabled || false,
+        runIfMissed: app.runIfMissed || false,
+        lastRun: appState.lastRun || null,
+        lastExitCode: appState.lastExitCode,
+        isJobActive,
+        nextRun: isJobActive && job?.nextInvocation()
+          ? job.nextInvocation().toISOString()
+          : null
+      };
+    });
+
+  res.json(schedules);
+});
+
 // Stop an app
 app.post('/api/stop', (req, res) => {
   const { id } = req.body;
@@ -2105,4 +2583,7 @@ process.on('SIGINT', () => {
 app.listen(PORT, () => {
   console.log(`QuickLaunch running at http://localhost:${PORT}`);
   console.log('Press Ctrl+C to stop');
+
+  // Initialize scheduled jobs
+  initializeScheduledJobs();
 });

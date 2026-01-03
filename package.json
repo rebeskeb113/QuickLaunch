@@ -7,11 +7,16 @@
     "start": "node server.js",
     "dev": "node server.js"
   },
-  "keywords": ["localhost", "dashboard", "launcher"],
+  "keywords": [
+    "localhost",
+    "dashboard",
+    "launcher"
+  ],
   "author": "Ben Rebeske",
   "license": "MIT",
   "dependencies": {
     "express": "^4.18.2",
+    "node-schedule": "^2.1.1",
     "tree-kill": "^1.2.2"
   }
 }

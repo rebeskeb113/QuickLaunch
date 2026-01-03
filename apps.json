@@ -11,11 +11,35 @@
       "path": "C:\\Users\\BenjaminRebeske\\Documents\\Projects\\HTM_Email",
       "command": "npm run dev",
       "icon": "📧",
-      "colors": ["#ff6b6b", "#feca57"],
+      "colors": [
+        "#ff6b6b",
+        "#feca57"
+      ],
       "healthCheckUrl": null,
       "startupTimeout": 30000,
       "autoRestart": false,
       "maxRestartAttempts": 3
+    },
+    {
+      "id": "mealtrack",
+      "name": "MealTrack",
+      "description": "Meal & health tracking dashboard",
+      "port": 5174,
+      "path": "C:\\Users\\BenjaminRebeske\\Documents\\Projects\\MealTrack\\web",
+      "command": "node node_modules/vite/bin/vite.js",
+      "icon": "🍽️",
+      "colors": [
+        "#00d9ff",
+        "#00ff88"
+      ],
+      "healthCheckUrl": null,
+      "startupTimeout": 30000,
+      "autoRestart": false,
+      "maxRestartAttempts": 3,
+      "schedule": "12:00",
+      "scheduleEnabled": true,
+      "scheduleCommand": "npm run sync --prefix C:\\Users\\BenjaminRebeske\\Documents\\Projects\\MealTrack",
+      "runIfMissed": true
     }
   ]
 }
