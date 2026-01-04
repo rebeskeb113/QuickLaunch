@@ -168,7 +168,7 @@ QuickLaunch exposes a REST API:
 
 - **Backend**: Node.js + Express
 - **Frontend**: Vanilla HTML/CSS/JavaScript (no build step!)
-- **Process Management**: tree-kill for reliable process termination
+- **Process Management**: Custom process tree termination (Windows-optimized)
 - **Storage**: JSON file-based (no database required)
 
 ## Development
@@ -178,6 +178,45 @@ QuickLaunch exposes a REST API:
 npm run dev
 
 # The server auto-serves index.html from the project root
+```
+
+## Running as a Background Service (PM2)
+
+QuickLaunch can run as a background service that auto-starts on boot using [PM2](https://pm2.keymetrics.io/).
+
+### Initial Setup
+
+```bash
+# Install PM2 globally
+npm install -g pm2
+
+# Start QuickLaunch with PM2
+pm2 start server.js --name quicklaunch
+
+# Save the process list (for auto-restart on reboot)
+pm2 save
+
+# Set up PM2 to start on system boot (run as Administrator)
+pm2-startup
+```
+
+### Managing the Service
+
+```bash
+pm2 list                  # Show all managed apps
+pm2 restart quicklaunch   # Restart QuickLaunch
+pm2 stop quicklaunch      # Stop QuickLaunch
+pm2 start quicklaunch     # Start QuickLaunch
+pm2 logs quicklaunch      # View logs
+pm2 monit                 # Real-time monitoring dashboard
+```
+
+### Updating After Code Changes
+
+After pulling updates or making changes to `server.js`:
+
+```bash
+pm2 restart quicklaunch
 ```
 
 ## License
