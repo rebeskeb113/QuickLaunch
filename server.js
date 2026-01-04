@@ -2,8 +2,33 @@ const express = require('express');
 const { spawn, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
-const treeKill = require('tree-kill');
 const schedule = require('node-schedule');
+
+// Custom tree-kill that hides the command window on Windows
+function killProcessTree(pid, callback) {
+  if (process.platform === 'win32') {
+    try {
+      // Use taskkill with /T (tree) and /F (force) flags
+      // windowsHide: true prevents the command window from appearing
+      execSync(`taskkill /PID ${pid} /T /F`, {
+        windowsHide: true,
+        stdio: 'ignore'
+      });
+      if (callback) callback(null);
+    } catch (err) {
+      // Process may already be gone, which is fine
+      if (callback) callback(err);
+    }
+  } else {
+    // On Unix, use process.kill with negative PID to kill process group
+    try {
+      process.kill(-pid, 'SIGKILL');
+      if (callback) callback(null);
+    } catch (err) {
+      if (callback) callback(err);
+    }
+  }
+}
 
 const app = express();
 const PORT = 8000;
@@ -2591,9 +2616,8 @@ app.post('/api/stop', (req, res) => {
   // Remove from tracking immediately
   runningProcesses.delete(id);
 
-  // Use tree-kill to kill the process and all children
-  // On Windows, don't specify a signal - let tree-kill use taskkill
-  treeKill(pid, (err) => {
+  // Kill the process and all children (windowsHide prevents cmd popup)
+  killProcessTree(pid, (err) => {
     if (err) {
       console.error(`[${appName}] Error stopping (PID ${pid}):`, err.message);
     } else {
@@ -2609,7 +2633,7 @@ process.on('SIGINT', () => {
   console.log('\nShutting down QuickLaunch...');
   for (const [id, info] of runningProcesses) {
     console.log(`Stopping ${info.name}...`);
-    treeKill(info.process.pid);
+    killProcessTree(info.process.pid);
   }
   setTimeout(() => process.exit(), 1000);
 });
