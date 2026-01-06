@@ -266,7 +266,15 @@ async function executeScheduledApp(appId, appConfig, isManual = false) {
 
   const isWindows = process.platform === 'win32';
   // Use scheduleCommand if available (for hybrid apps), otherwise fall back to command
-  const commandToRun = appConfig.scheduleCommand || appConfig.command;
+  let commandToRun = appConfig.scheduleCommand || appConfig.command;
+
+  // For scheduled (non-manual) runs, add --headless flag to run browser in background
+  // This prevents a visible Chrome window from popping up during automated syncs
+  if (!isManual && commandToRun.includes('npm run sync')) {
+    commandToRun = commandToRun + ' -- --headless';
+    console.log(`[Scheduler] Running in headless mode for scheduled sync`);
+  }
+
   const parts = commandToRun.split(' ');
   const cmd = parts[0];
   const args = parts.slice(1);
@@ -275,7 +283,8 @@ async function executeScheduledApp(appId, appConfig, isManual = false) {
     cwd: appConfig.path,
     shell: isWindows,
     stdio: ['ignore', 'pipe', 'pipe'],
-    detached: false
+    detached: false,
+    windowsHide: true  // Hide the CMD window for scheduled tasks
   });
 
   const logs = [];
@@ -517,11 +526,21 @@ async function autoRestartApp(appId, appConfig) {
   return { success: true, pid: proc.pid, attempt: tracker.attempts };
 }
 
+// Exit codes that represent normal terminations, not crashes
+// 3221225786 (0xC000013A) = STATUS_CONTROL_C_EXIT (Ctrl+C or window close)
+// 1073807364 (0x40010004) = STATUS_SYSTEM_PROCESS_TERMINATED (system shutdown/logoff)
+const NORMAL_EXIT_CODES = new Set([0, 3221225786, 1073807364]);
+
+function isNormalExit(exitCode) {
+  return NORMAL_EXIT_CODES.has(exitCode);
+}
+
 // Handle process exit (used by both initial start and auto-restart)
 function handleProcessExit(appId, exitCode, appConfig) {
   const name = appConfig?.name || appId;
-  console.log(`[${name}] Exited with code ${exitCode}`);
-  logTroubleshoot(name, exitCode === 0 ? 'info' : 'error', `Process exited with code ${exitCode}`, { exitCode });
+  const isNormal = isNormalExit(exitCode);
+  console.log(`[${name}] Exited with code ${exitCode}${isNormal && exitCode !== 0 ? ' (normal termination)' : ''}`);
+  logTroubleshoot(name, isNormal ? 'info' : 'error', `Process exited with code ${exitCode}`, { exitCode, normalTermination: isNormal });
 
   const info = runningProcesses.get(appId);
   if (info) {
@@ -529,8 +548,8 @@ function handleProcessExit(appId, exitCode, appConfig) {
     info.status = 'stopped';
     info.exitCode = exitCode;
 
-    // If crashed (non-zero exit) after running for a while, consider auto-restart
-    if (exitCode !== 0 && runTime > 5000 && appConfig?.autoRestart) {
+    // If crashed (non-zero exit that's not a normal termination) after running for a while, consider auto-restart
+    if (!isNormal && runTime > 5000 && appConfig?.autoRestart) {
       info.status = 'restarting';
 
       if (shouldAutoRestart(appId, appConfig)) {
@@ -547,7 +566,7 @@ function handleProcessExit(appId, exitCode, appConfig) {
           maxAttempts: appConfig?.maxRestartAttempts
         });
       }
-    } else if (exitCode !== 0 && runTime < 5000) {
+    } else if (!isNormal && runTime < 5000) {
       // Quick crash = startup failure, don't auto-restart
       info.status = 'failed';
       info.error = `Startup crash (exit code ${exitCode})`;
@@ -748,7 +767,8 @@ function countPendingTodos() {
     const autoSection = content.indexOf('## Auto-Detected Issues');
     if (autoSection > -1) {
       const autoContent = content.slice(autoSection);
-      const autoMatches = autoContent.match(/^### \[.*?\]/gm) || [];
+      // Match full ### header line, not just the date bracket
+      const autoMatches = autoContent.match(/^### \[.+$/gm) || [];
       for (const match of autoMatches) {
         const item = match.replace(/^### /, '').trim();
         if (!pendingItems.includes(item)) {
@@ -759,7 +779,9 @@ function countPendingTodos() {
             section: 'Auto-Detected Issues',
             description: 'Automatically detected issue that needs attention',
             markedForImplement: false,
-            markedParking: false
+            markedParking: false,
+            isAutoDetected: true, // Flag to help triage identify these
+            originalText: item    // Store the original text without [Auto] prefix
           });
         }
       }
@@ -849,23 +871,55 @@ function applyTriage(items) {
           results.implement++;
         }
       } else if (action === 'dontdo') {
-        // Move to resolution log and remove from TODO.md
-        const lineIndex = lines.findIndex(line =>
-          line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(text)
-        );
+        // Check if this is an auto-detected item (starts with [Auto])
+        const isAutoDetected = text.startsWith('[Auto] ');
+        const searchText = isAutoDetected ? text.replace('[Auto] ', '') : text;
+
+        let lineIndex = -1;
+        let endIndex = -1; // For auto-detected items, we need to remove the whole block
+
+        if (isAutoDetected) {
+          // Auto-detected items are ### headers, find the header and its content block
+          lineIndex = lines.findIndex(line =>
+            line.startsWith('### ') && line.includes(searchText)
+          );
+
+          if (lineIndex !== -1) {
+            // Find where this block ends (next ### or ## or end of content)
+            endIndex = lineIndex + 1;
+            while (endIndex < lines.length) {
+              const nextLine = lines[endIndex];
+              if (nextLine.startsWith('## ') || nextLine.startsWith('### ')) {
+                break;
+              }
+              endIndex++;
+            }
+            // Remove trailing empty lines from the block
+            while (endIndex > lineIndex + 1 && lines[endIndex - 1].trim() === '') {
+              endIndex--;
+            }
+          }
+        } else {
+          // Regular checkbox item
+          lineIndex = lines.findIndex(line =>
+            line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(searchText)
+          );
+        }
 
         if (lineIndex !== -1) {
-          lines.splice(lineIndex, 1);
+          // Remove the item (or block for auto-detected)
+          const removeCount = isAutoDetected && endIndex > lineIndex ? endIndex - lineIndex : 1;
+          lines.splice(lineIndex, removeCount);
 
           // Log to resolutions file
           const resolution = {
             date: new Date().toISOString(),
             app: 'QuickLaunch',
-            issue: text,
-            errorType: 'TODO_TRIAGED',
+            issue: searchText,
+            errorType: isAutoDetected ? 'AUTO_DETECTED_RESOLVED' : 'TODO_TRIAGED',
             disposition: 'cancelled',
             explanation: 'Marked as "Don\'t Do" during triage',
-            notes: `Original priority: ${priority}`
+            notes: `Original priority: ${priority}${isAutoDetected ? ' (auto-detected issue)' : ''}`
           };
           saveResolution(resolution);
 
@@ -940,7 +994,8 @@ function analyzeLogHistory(appId, appName) {
       }
 
       // Count failures - but skip if this error type was resolved AFTER this log entry
-      if (level === 'ERROR' || level === 'WARN') {
+      // Also skip if the log indicates a normal termination (new logs have normalTermination field)
+      if ((level === 'ERROR' || level === 'WARN') && !rest.includes('"normalTermination":true')) {
         // Determine the error type for this log entry
         let errorType = null;
         if (rest.includes('Port') && rest.includes('in use')) {
@@ -950,7 +1005,13 @@ function analyzeLogHistory(appId, appName) {
         } else if (rest.includes('module') || rest.includes('MODULE')) {
           errorType = 'MISSING_MODULE';
         } else if (rest.includes('exited with code')) {
-          errorType = 'CRASH';
+          // Extract exit code and check if it's a normal termination
+          const exitCodeMatch = rest.match(/exited with code (\d+)/);
+          const exitCode = exitCodeMatch ? parseInt(exitCodeMatch[1], 10) : null;
+          // Only count as CRASH if it's not a normal termination (Ctrl+C, shutdown, etc.)
+          if (exitCode !== null && !isNormalExit(exitCode)) {
+            errorType = 'CRASH';
+          }
         }
 
         // Check if this error type was resolved after this failure occurred

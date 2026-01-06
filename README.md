@@ -1,5 +1,7 @@
 # QuickLaunch
 
+> **Project Docs**: [_ideas/Projects/quicklaunch/](../RNest/_ideas/Projects/quicklaunch/)
+
 A local development dashboard for managing and launching your dev apps with one click.
 
 ![QuickLaunch Dashboard](https://img.shields.io/badge/version-2.0.0-blue) ![Node.js](https://img.shields.io/badge/node-%3E%3D16-green) ![License](https://img.shields.io/badge/license-MIT-brightgreen)
