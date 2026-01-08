@@ -8,7 +8,7 @@
       "name": "Bulletproof",
       "description": "HTML email sender with MSAL auth",
       "port": 5173,
-      "path": "C:\\Users\\BenjaminRebeske\\Documents\\Projects\\HTM_Email",
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\HTM_Email",
       "command": "npm run dev",
       "icon": "📧",
       "colors": [
@@ -25,7 +25,7 @@
       "name": "MealTrack",
       "description": "Meal & health tracking dashboard",
       "port": 5174,
-      "path": "C:\\Users\\BenjaminRebeske\\Documents\\Projects\\MealTrack\\web",
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\MealTrack\\web",
       "command": "node node_modules/vite/bin/vite.js",
       "icon": "🍽️",
       "colors": [
@@ -38,7 +38,7 @@
       "maxRestartAttempts": 3,
       "schedule": "12:00",
       "scheduleEnabled": true,
-      "scheduleCommand": "npm run sync --prefix C:\\Users\\BenjaminRebeske\\Documents\\Projects\\MealTrack",
+      "scheduleCommand": "npm run sync --prefix \"C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\MealTrack\"",
       "runIfMissed": true
     }
   ]

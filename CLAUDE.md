@@ -79,7 +79,7 @@ Apps are defined in `apps.json`. Current apps:
 ## Usage
 
 ```bash
-cd C:\Users\BenjaminRebeske\Documents\Projects\QuickLaunch
+cd "C:\Users\BenjaminRebeske\OneDrive - Corbeau Tech, LLC\Documents\Projects\QuickLaunch"
 npm start
 ```
 
