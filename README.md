@@ -197,9 +197,30 @@ pm2 start server.js --name quicklaunch
 
 # Save the process list (for auto-restart on reboot)
 pm2 save
+```
 
-# Set up PM2 to start on system boot (run as Administrator)
-pm2-startup
+### Windows Auto-Start on Boot
+
+On Windows, use `pm2-windows-startup` to auto-start PM2 on login:
+
+```bash
+# Install the Windows startup helper
+npm install -g pm2-windows-startup
+
+# Register PM2 to start on Windows login
+pm2-startup install
+
+# Make sure your process list is saved
+pm2 save
+```
+
+This adds a registry entry at `HKCU\Software\Microsoft\Windows\CurrentVersion\Run` that runs `pm2 resurrect` on login, restoring all saved processes from `~/.pm2/dump.pm2`.
+
+**Important:** If you move the project folder, re-register with PM2:
+```bash
+pm2 delete quicklaunch
+pm2 start "C:\path\to\QuickLaunch\server.js" --name quicklaunch
+pm2 save
 ```
 
 ### Managing the Service
@@ -223,7 +244,7 @@ pm2 restart quicklaunch
 
 ## License
 
-MIT License - see [LICENSE](LICENSE) for details.
+Private/Internal Use
 
 ## Author
 
