@@ -95,6 +95,13 @@
       transform: scale(1.05);
     }
 
+    .app-icon img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      border-radius: 14px;
+    }
+
     .app-name {
       color: #fff;
       font-size: 1.1rem;
@@ -1432,6 +1439,11 @@
           <input type="text" id="appIcon" placeholder="e.g., &#x1F4E7;" maxlength="4">
         </div>
         <div class="form-group">
+          <label for="appIconPath">Icon Image Path (optional)</label>
+          <input type="text" id="appIconPath" placeholder="e.g., C:\path\to\icon.png or http://...">
+          <small>Use a custom image instead of emoji. Supports local paths or URLs.</small>
+        </div>
+        <div class="form-group">
           <label for="appStartupTimeout">Startup Timeout (seconds)</label>
           <input type="number" id="appStartupTimeout" placeholder="30" min="5" max="300">
           <small>How long to wait for the app to respond (default: 30s). Increase for slow-starting apps.</small>
@@ -2077,6 +2089,17 @@
       }
     }
 
+    // Helper function to render icon (emoji or image)
+    function renderIcon(app) {
+      if (app.iconPath) {
+        // Check if it's a URL (http/https) or a local path
+        const isUrl = app.iconPath.startsWith('http://') || app.iconPath.startsWith('https://');
+        const src = isUrl ? app.iconPath : `/api/icon?path=${encodeURIComponent(app.iconPath)}`;
+        return `<img src="${src}" alt="${app.name}" onerror="this.outerHTML='${app.icon || '🚀'}'">`;
+      }
+      return app.icon || '🚀';
+    }
+
     // Render all apps
     async function renderApps() {
       await fetchServerStatus();
@@ -2088,6 +2111,7 @@
       for (const app of apps) {
         const statusInfo = serverStatus[app.id];
         const isRunning = statusInfo?.running || statusInfo?.status === 'running';
+        const isExternal = statusInfo?.status === 'external'; // Running but started outside QuickLaunch
         const isStarting = statusInfo?.status === 'starting';
         const isRestarting = statusInfo?.status === 'restarting';
         const isFailed = statusInfo?.status === 'failed';
@@ -2103,8 +2127,10 @@
         let statusBadge = '';
         if (isRestarting) {
           statusBadge = '<div class="status-badge restarting">Restarting...</div>';
-        } else if (isStarting || (isScheduledApp && isRunning)) {
+        } else if (isStarting || (isScheduledApp && isRunning && !isExternal)) {
           statusBadge = `<div class="status-badge starting">${isScheduledApp ? 'Running...' : 'Starting...'}</div>`;
+        } else if (isExternal) {
+          statusBadge = '<div class="status-badge" style="background: rgba(147, 51, 234, 0.2); color: #a78bfa;" title="Started outside QuickLaunch">External</div>';
         } else if (isFailed) {
           statusBadge = '<div class="status-badge failed">Failed</div>';
         } else if (isScheduledApp && isCompleted) {
@@ -2134,7 +2160,7 @@
             <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${isRunning ? 'cursor: pointer;' : 'cursor: not-allowed;'}"
                  onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
                  title="${isRunning ? 'Open in browser' : 'Start the app first'}">
-              ${app.icon || '🚀'}
+              ${renderIcon(app)}
             </div>
             <div class="app-name">${app.name}${scheduleBadge}</div>
             ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
@@ -2165,7 +2191,7 @@
             <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${canRunManually ? 'cursor: pointer;' : 'cursor: not-allowed;'}"
                  onclick="${canRunManually ? `handleManualRun('${app.id}', '${app.name}')` : ''}"
                  title="${canRunManually ? 'Click to run manually (off-schedule)' : (isRunning ? 'Currently running...' : 'Enable scheduler first')}">
-              ${app.icon || '🚀'}
+              ${renderIcon(app)}
             </div>
             <div class="app-name">${app.name}${scheduleBadge}</div>
             ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
@@ -2192,7 +2218,7 @@
             <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}"
                  onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
                  title="${isRunning ? 'Open in browser' : 'Start the app first'}">
-              ${app.icon || '🚀'}
+              ${renderIcon(app)}
             </div>
             <div class="app-name">${app.name}${autoRestartBadge}</div>
             ${app.description ? `<div class="app-description">${escapeHtml(app.description)}</div>` : ''}
@@ -2361,6 +2387,7 @@
       document.getElementById('appPath').value = app?.path || '';
       document.getElementById('appCommand').value = app?.command || 'npm run dev';
       document.getElementById('appIcon').value = app?.icon || '';
+      document.getElementById('appIconPath').value = app?.iconPath || '';
       document.getElementById('appStartupTimeout').value = app?.startupTimeout ? app.startupTimeout / 1000 : '';
       document.getElementById('appHealthUrl').value = app?.healthCheckUrl || '';
       document.getElementById('appAutoRestart').checked = app?.autoRestart || false;
@@ -2436,6 +2463,7 @@
       const appPath = document.getElementById('appPath').value.trim();
       const command = document.getElementById('appCommand').value.trim();
       const icon = document.getElementById('appIcon').value.trim() || '🚀';
+      const iconPath = document.getElementById('appIconPath').value.trim() || null;
       const startupTimeoutSec = document.getElementById('appStartupTimeout').value;
       const healthCheckUrl = document.getElementById('appHealthUrl').value.trim();
       const autoRestart = document.getElementById('appAutoRestart').checked;
@@ -2460,6 +2488,7 @@
           path: appPath,
           command,
           icon,
+          iconPath,
           startupTimeout,
           healthCheckUrl,
           autoRestart
@@ -2473,6 +2502,7 @@
           path: appPath,
           command,
           icon,
+          iconPath,
           startupTimeout,
           healthCheckUrl,
           autoRestart,

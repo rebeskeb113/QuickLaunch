@@ -813,12 +813,46 @@ function applyTriage(items) {
 
       if (action === 'parking') {
         // Move to "Parking Lot" section to mark as explicitly triaged
-        const lineIndex = lines.findIndex(line =>
-          line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(text)
-        );
+        // Check if this is an auto-detected item (starts with [Auto])
+        const isAutoDetected = text.startsWith('[Auto] ');
+        const searchText = isAutoDetected ? text.replace('[Auto] ', '') : text;
+        const displayText = isAutoDetected ? searchText : text;
+
+        let lineIndex = -1;
+        let endIndex = -1;
+
+        if (isAutoDetected) {
+          // Auto-detected items are ### headers, find the header and its content block
+          lineIndex = lines.findIndex(line =>
+            line.startsWith('### ') && line.includes(searchText)
+          );
+
+          if (lineIndex !== -1) {
+            // Find where this block ends (next ### or ## or end of content)
+            endIndex = lineIndex + 1;
+            while (endIndex < lines.length) {
+              const nextLine = lines[endIndex];
+              if (nextLine.startsWith('## ') || nextLine.startsWith('### ')) {
+                break;
+              }
+              endIndex++;
+            }
+            // Remove trailing empty lines from the block
+            while (endIndex > lineIndex + 1 && lines[endIndex - 1].trim() === '') {
+              endIndex--;
+            }
+          }
+        } else {
+          // Regular checkbox item
+          lineIndex = lines.findIndex(line =>
+            line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(searchText)
+          );
+        }
 
         if (lineIndex !== -1) {
-          lines.splice(lineIndex, 1); // Remove from current location
+          // Remove the item (or block for auto-detected)
+          const removeCount = isAutoDetected && endIndex > lineIndex ? endIndex - lineIndex : 1;
+          lines.splice(lineIndex, removeCount);
 
           // Find or create "Parking Lot" section
           let parkingLotIndex = lines.findIndex(line => line.match(/^##\s+Parking\s+Lot/i));
@@ -827,27 +861,60 @@ function applyTriage(items) {
             // Create "Parking Lot" section at the end (before Support Codes if exists)
             const supportCodesIndex = lines.findIndex(line => line.match(/^##\s+Support\s+Codes/i));
             if (supportCodesIndex !== -1) {
-              lines.splice(supportCodesIndex, 0, '', '## Parking Lot', '', `- [ ] ${text}`, '');
+              lines.splice(supportCodesIndex, 0, '', '## Parking Lot', '', `- [ ] ${displayText}`, '');
             } else {
               // No support codes section, add at end
-              lines.push('', '## Parking Lot', '', `- [ ] ${text}`);
+              lines.push('', '## Parking Lot', '', `- [ ] ${displayText}`);
             }
           } else {
             // Insert after "Parking Lot" heading
-            lines.splice(parkingLotIndex + 1, 0, `- [ ] ${text}`);
+            lines.splice(parkingLotIndex + 1, 0, `- [ ] ${displayText}`);
           }
 
           results.parking++;
         }
       } else if (action === 'implement') {
         // Move to "Next Session" section (create if doesn't exist)
-        // First, find and remove from current location
-        const lineIndex = lines.findIndex(line =>
-          line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(text)
-        );
+        // Check if this is an auto-detected item (starts with [Auto])
+        const isAutoDetected = text.startsWith('[Auto] ');
+        const searchText = isAutoDetected ? text.replace('[Auto] ', '') : text;
+        const displayText = isAutoDetected ? searchText : text;
+
+        let lineIndex = -1;
+        let endIndex = -1;
+
+        if (isAutoDetected) {
+          // Auto-detected items are ### headers, find the header and its content block
+          lineIndex = lines.findIndex(line =>
+            line.startsWith('### ') && line.includes(searchText)
+          );
+
+          if (lineIndex !== -1) {
+            // Find where this block ends (next ### or ## or end of content)
+            endIndex = lineIndex + 1;
+            while (endIndex < lines.length) {
+              const nextLine = lines[endIndex];
+              if (nextLine.startsWith('## ') || nextLine.startsWith('### ')) {
+                break;
+              }
+              endIndex++;
+            }
+            // Remove trailing empty lines from the block
+            while (endIndex > lineIndex + 1 && lines[endIndex - 1].trim() === '') {
+              endIndex--;
+            }
+          }
+        } else {
+          // Regular checkbox item
+          lineIndex = lines.findIndex(line =>
+            line.match(/^[\s]*-\s*\[\s*\]/) && line.includes(searchText)
+          );
+        }
 
         if (lineIndex !== -1) {
-          lines.splice(lineIndex, 1); // Remove from current location
+          // Remove the item (or block for auto-detected)
+          const removeCount = isAutoDetected && endIndex > lineIndex ? endIndex - lineIndex : 1;
+          lines.splice(lineIndex, removeCount);
 
           // Find or create "Next Session" section
           let nextSessionIndex = lines.findIndex(line => line.match(/^##\s+Next\s+Session/i));
@@ -857,15 +924,15 @@ function applyTriage(items) {
             // Find first ## heading
             const firstHeadingIndex = lines.findIndex(line => line.match(/^##\s+/));
             if (firstHeadingIndex !== -1) {
-              lines.splice(firstHeadingIndex, 0, '## Next Session\n', `- [ ] ${text}`, '');
+              lines.splice(firstHeadingIndex, 0, '## Next Session\n', `- [ ] ${displayText}`, '');
               nextSessionIndex = firstHeadingIndex;
             } else {
               // No headings found, add at end
-              lines.push('', '## Next Session', '', `- [ ] ${text}`);
+              lines.push('', '## Next Session', '', `- [ ] ${displayText}`);
             }
           } else {
             // Insert after "Next Session" heading
-            lines.splice(nextSessionIndex + 1, 0, `- [ ] ${text}`);
+            lines.splice(nextSessionIndex + 1, 0, `- [ ] ${displayText}`);
           }
 
           results.implement++;
@@ -1448,9 +1515,35 @@ app.use((req, res, next) => {
 app.use(express.json());
 app.use(express.static(__dirname));
 
+// Serve icon images from local file paths
+app.get('/api/icon', (req, res) => {
+  const { path: iconPath } = req.query;
+  if (!iconPath) {
+    return res.status(400).send('Missing path parameter');
+  }
+
+  // Only allow image file extensions
+  const ext = iconPath.toLowerCase().split('.').pop();
+  if (!['png', 'jpg', 'jpeg', 'gif', 'svg', 'ico', 'webp'].includes(ext)) {
+    return res.status(400).send('Invalid file type');
+  }
+
+  // Check if file exists and send it
+  const fs = require('fs');
+  if (fs.existsSync(iconPath)) {
+    res.sendFile(iconPath);
+  } else {
+    res.status(404).send('Icon not found');
+  }
+});
+
 // Get status of all apps (with recent logs)
-app.get('/api/status', (req, res) => {
+// Enhanced to detect externally-started apps via health check
+app.get('/api/status', async (req, res) => {
   const status = {};
+  const config = loadAppsConfig();
+
+  // First, populate from runningProcesses (apps started by QuickLaunch)
   for (const [id, info] of runningProcesses) {
     status[id] = {
       running: info.status === 'running',
@@ -1462,6 +1555,42 @@ app.get('/api/status', (req, res) => {
       startTime: info.startTime
     };
   }
+
+  // Then, check for externally-started apps (those with ports that aren't 'running')
+  // Only check apps that have a port and are either failed/stopped or not tracked
+  const appsToCheck = config.apps.filter(app => {
+    if (!app.port || app.port <= 0) return false; // Skip portless/scheduled apps
+    const tracked = status[app.id];
+    // Check if not tracked OR tracked but not running (failed/stopped)
+    return !tracked || (tracked.status !== 'running' && tracked.status !== 'starting');
+  });
+
+  // Parallel health checks for efficiency (quick 500ms timeout)
+  const healthChecks = await Promise.all(
+    appsToCheck.map(async (app) => {
+      const healthUrl = app.healthCheckUrl ? `http://localhost:${app.port}${app.healthCheckUrl}` : null;
+      const result = await checkHealth(app.port, healthUrl, 500); // Quick check
+      return { app, healthy: result.healthy };
+    })
+  );
+
+  // Update status for externally-running apps
+  for (const { app, healthy } of healthChecks) {
+    if (healthy) {
+      status[app.id] = {
+        running: true,
+        port: app.port,
+        name: app.name,
+        pid: null, // Unknown - started externally
+        status: 'external', // New status: running but not managed by QuickLaunch
+        recentLogs: [],
+        startTime: null,
+        external: true // Flag to indicate this was detected, not started
+      };
+    }
+    // If not healthy and was 'failed', keep the failed status (already in status object)
+  }
+
   res.json(status);
 });
 
@@ -1491,7 +1620,7 @@ app.get('/api/apps', (req, res) => {
 
 // POST /api/apps - Add a new app
 app.post('/api/apps', (req, res) => {
-  const { name, description, port, path: appPath, command, icon, colors, healthCheckUrl, startupTimeout, autoRestart, maxRestartAttempts } = req.body;
+  const { name, description, port, path: appPath, command, icon, iconPath, colors, healthCheckUrl, startupTimeout, autoRestart, maxRestartAttempts } = req.body;
 
   // Validate required fields
   if (!name || !port || !appPath || !command) {
@@ -1520,6 +1649,7 @@ app.post('/api/apps', (req, res) => {
     path: appPath,
     command,
     icon: icon || '🚀',
+    iconPath: iconPath || null,
     colors: colors || ['#00d9ff', '#00ff88'],
     healthCheckUrl: healthCheckUrl || null,
     startupTimeout: startupTimeout || 30000,
@@ -1738,6 +1868,7 @@ app.post('/api/apps/migrate', (req, res) => {
       path: clientApp.path,
       command: clientApp.command,
       icon: clientApp.icon || '🚀',
+      iconPath: clientApp.iconPath || null,
       colors: clientApp.colors || ['#00d9ff', '#00ff88'],
       healthCheckUrl: clientApp.healthCheckUrl || null,
       startupTimeout: clientApp.startupTimeout || 30000,

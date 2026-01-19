@@ -40,6 +40,45 @@
       "scheduleEnabled": true,
       "scheduleCommand": "npm run sync --prefix \"C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\MealTrack\"",
       "runIfMissed": true
+    },
+    {
+      "id": "counterpart-navigator",
+      "name": "CP Navigator",
+      "description": "Counterpart OS knowledge graph",
+      "port": 5175,
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\CounterpartNavigator",
+      "command": "npm run dev",
+      "icon": "🤝",
+      "iconPath": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\CounterpartNavigator\\public\\favicon.png",
+      "colors": [
+        "#ef4444",
+        "#f97316"
+      ],
+      "healthCheckUrl": null,
+      "startupTimeout": 30000,
+      "autoRestart": false,
+      "maxRestartAttempts": 3
+    },
+    {
+      "id": "ils-prep-bot",
+      "name": "ILS Prep Bot",
+      "description": "ILS meeting prep report generator",
+      "port": 5176,
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\ILSPrepBot",
+      "command": "node dist/server/index.js",
+      "icon": "📋",
+      "iconPath": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\QuickLaunch\\icons\\clickup.svg",
+      "colors": [
+        "#1e3a5f",
+        "#2d5a87"
+      ],
+      "healthCheckUrl": null,
+      "startupTimeout": 30000,
+      "autoRestart": false,
+      "maxRestartAttempts": 3,
+      "schedule": "16:00",
+      "scheduleEnabled": true,
+      "scheduleDays": ["monday", "wednesday"]
     }
   ]
 }
