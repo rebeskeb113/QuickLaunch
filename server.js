@@ -1,5 +1,5 @@
 const express = require('express');
-const { spawn, execSync } = require('child_process');
+const { spawn, exec, execSync } = require('child_process');
 const path = require('path');
 const fs = require('fs');
 const schedule = require('node-schedule');
@@ -224,38 +224,69 @@ function hasScheduleTimePassedToday(cronSchedule) {
   return false;
 }
 
-// Convert simple time format to cron
-function timeToCron(timeStr) {
-  // Handle "12:00" format -> "0 12 * * *"
+// Day name to cron day number mapping (D31)
+const DAY_TO_CRON = {
+  sunday: 0, monday: 1, tuesday: 2, wednesday: 3,
+  thursday: 4, friday: 5, saturday: 6
+};
+
+// Convert simple time format to cron, with optional scheduleDays (D31)
+function timeToCron(timeStr, scheduleDays = null) {
+  // Handle "12:00" format -> "0 12 * * *" (or specific days)
   const timeMatch = timeStr.match(/^(\d{1,2}):(\d{2})$/);
   if (timeMatch) {
-    return `${parseInt(timeMatch[2])} ${parseInt(timeMatch[1])} * * *`;
+    const minute = parseInt(timeMatch[2]);
+    const hour = parseInt(timeMatch[1]);
+
+    // If scheduleDays specified, use those days; otherwise daily (*)
+    let daysPart = '*';
+    if (scheduleDays && Array.isArray(scheduleDays) && scheduleDays.length > 0) {
+      const cronDays = scheduleDays
+        .map(d => DAY_TO_CRON[d.toLowerCase()])
+        .filter(d => d !== undefined)
+        .join(',');
+      if (cronDays) daysPart = cronDays;
+    }
+
+    return `${minute} ${hour} * * ${daysPart}`;
   }
   // Already cron format
   return timeStr;
 }
 
-// Get human-readable schedule description
-function getScheduleDescription(cronSchedule) {
+// Get human-readable schedule description (D31: added scheduleDays support)
+function getScheduleDescription(cronSchedule, scheduleDays = null) {
+  // Format time portion
+  let timeStr = '';
   const timeMatch = cronSchedule.match(/^(\d{1,2}):(\d{2})$/);
   if (timeMatch) {
     const hour = parseInt(timeMatch[1]);
     const minute = timeMatch[2];
     const ampm = hour >= 12 ? 'PM' : 'AM';
     const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
-    return `Daily at ${hour12}:${minute} ${ampm}`;
+    timeStr = `${hour12}:${minute} ${ampm}`;
+  } else {
+    const cronMatch = cronSchedule.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+/);
+    if (cronMatch) {
+      const minute = cronMatch[1].padStart(2, '0');
+      const hour = parseInt(cronMatch[2]);
+      const ampm = hour >= 12 ? 'PM' : 'AM';
+      const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
+      timeStr = `${hour12}:${minute} ${ampm}`;
+    } else {
+      return cronSchedule;
+    }
   }
 
-  const cronMatch = cronSchedule.match(/^(\d+)\s+(\d+)\s+\*\s+\*\s+\*$/);
-  if (cronMatch) {
-    const minute = cronMatch[1].padStart(2, '0');
-    const hour = parseInt(cronMatch[2]);
-    const ampm = hour >= 12 ? 'PM' : 'AM';
-    const hour12 = hour > 12 ? hour - 12 : (hour === 0 ? 12 : hour);
-    return `Daily at ${hour12}:${minute} ${ampm}`;
+  // Format days portion
+  if (scheduleDays && Array.isArray(scheduleDays) && scheduleDays.length > 0) {
+    const dayAbbrevs = scheduleDays.map(d =>
+      d.charAt(0).toUpperCase() + d.slice(1, 3)
+    ).join('/');
+    return `${dayAbbrevs} at ${timeStr}`;
   }
 
-  return cronSchedule;
+  return `Daily at ${timeStr}`;
 }
 
 // Execute a scheduled app (similar to manual start but fire-and-forget for one-shot tasks)
@@ -349,7 +380,7 @@ async function executeScheduledApp(appId, appConfig, isManual = false) {
   return { success: true, pid: proc.pid, processKey };
 }
 
-// Set up a scheduled job for an app
+// Set up a scheduled job for an app (D31: added scheduleDays support)
 function setupScheduledJob(appId, appConfig) {
   // Cancel existing job if any
   if (scheduledJobs.has(appId)) {
@@ -361,9 +392,10 @@ function setupScheduledJob(appId, appConfig) {
     return null;
   }
 
-  const cronSchedule = timeToCron(appConfig.schedule);
+  // D31: Pass scheduleDays to generate day-specific cron expression
+  const cronSchedule = timeToCron(appConfig.schedule, appConfig.scheduleDays);
 
-  console.log(`[Scheduler] Setting up job for ${appConfig.name}: ${getScheduleDescription(appConfig.schedule)}`);
+  console.log(`[Scheduler] Setting up job for ${appConfig.name}: ${getScheduleDescription(appConfig.schedule, appConfig.scheduleDays)}`);
 
   const job = schedule.scheduleJob(cronSchedule, () => {
     console.log(`[Scheduler] Triggered: ${appConfig.name}`);
@@ -1568,9 +1600,24 @@ app.get('/api/status', async (req, res) => {
   // Parallel health checks for efficiency (quick 500ms timeout)
   const healthChecks = await Promise.all(
     appsToCheck.map(async (app) => {
-      const healthUrl = app.healthCheckUrl ? `http://localhost:${app.port}${app.healthCheckUrl}` : null;
-      const result = await checkHealth(app.port, healthUrl, 500); // Quick check
-      return { app, healthy: result.healthy };
+      try {
+        // healthCheckUrl should be a path like "/api/health", not a full URL
+        let healthUrl = null;
+        if (app.healthCheckUrl) {
+          // Strip accidental full URLs — only keep the path portion
+          if (app.healthCheckUrl.startsWith('http://') || app.healthCheckUrl.startsWith('https://')) {
+            try { healthUrl = new URL(app.healthCheckUrl).pathname; } catch { healthUrl = null; }
+          } else {
+            healthUrl = app.healthCheckUrl;
+          }
+          if (healthUrl) healthUrl = `http://localhost:${app.port}${healthUrl}`;
+        }
+        const result = await checkHealth(app.port, healthUrl, 500); // Quick check
+        return { app, healthy: result.healthy };
+      } catch (err) {
+        // Never let a single health check crash the entire status endpoint
+        return { app, healthy: false };
+      }
     })
   );
 
@@ -2556,9 +2603,10 @@ app.get('/api/schedule/:id', (req, res) => {
 
   res.json({
     schedule: appConfig.schedule || null,
+    scheduleDays: appConfig.scheduleDays || null, // D31
     scheduleEnabled: appConfig.scheduleEnabled || false,
     runIfMissed: appConfig.runIfMissed || false,
-    scheduleDescription: appConfig.schedule ? getScheduleDescription(appConfig.schedule) : null,
+    scheduleDescription: appConfig.schedule ? getScheduleDescription(appConfig.schedule, appConfig.scheduleDays) : null,
     lastRun: appState.lastRun || null,
     lastExitCode: appState.lastExitCode,
     isJobActive,
@@ -2622,7 +2670,8 @@ app.post('/api/schedule/:id/enable', (req, res) => {
       success: true,
       scheduleEnabled: enabled,
       schedule: appConfig.schedule,
-      scheduleDescription: getScheduleDescription(appConfig.schedule),
+      scheduleDays: appConfig.scheduleDays || null, // D31
+      scheduleDescription: getScheduleDescription(appConfig.schedule, appConfig.scheduleDays),
       lastRun: appState.lastRun || null,
       lastExitCode: appState.lastExitCode,
       ranToday: ranToday,
@@ -2630,7 +2679,7 @@ app.post('/api/schedule/:id/enable', (req, res) => {
       message: enabled
         ? (ranToday
           ? `Scheduler enabled. Already ran today at ${new Date(appState.lastRun).toLocaleTimeString()}. Next run tomorrow.`
-          : `Scheduler enabled. Will run at ${getScheduleDescription(appConfig.schedule)}.`)
+          : `Scheduler enabled. Will run at ${getScheduleDescription(appConfig.schedule, appConfig.scheduleDays)}.`)
         : 'Scheduler disabled.'
     });
   } else {
@@ -2719,10 +2768,10 @@ app.get('/api/schedule/:id/status', (req, res) => {
   });
 });
 
-// PUT /api/schedule/:id - Update schedule settings for an app
-app.put('/api/schedule/:id', (req, res) => {
+// PUT /api/schedule/:id - Update schedule settings for an app (D31: added scheduleDays + API proxy)
+app.put('/api/schedule/:id', async (req, res) => {
   const { id } = req.params;
-  const { schedule: newSchedule, runIfMissed } = req.body;
+  const { schedule: newSchedule, scheduleDays: newScheduleDays, runIfMissed } = req.body;
 
   const config = loadAppsConfig();
   const appIndex = config.apps.findIndex(app => app.id === id);
@@ -2731,27 +2780,58 @@ app.put('/api/schedule/:id', (req, res) => {
     return res.status(404).json({ error: 'App not found' });
   }
 
+  const appConfig = config.apps[appIndex];
+
   // Update schedule settings
   if (newSchedule !== undefined) {
-    config.apps[appIndex].schedule = newSchedule;
+    appConfig.schedule = newSchedule;
+  }
+  if (newScheduleDays !== undefined) {
+    appConfig.scheduleDays = newScheduleDays; // D31
   }
   if (runIfMissed !== undefined) {
-    config.apps[appIndex].runIfMissed = runIfMissed;
+    appConfig.runIfMissed = runIfMissed;
   }
 
   if (saveAppsConfig(config)) {
     // Re-setup job if enabled
-    if (config.apps[appIndex].scheduleEnabled) {
-      setupScheduledJob(id, config.apps[appIndex]);
+    if (appConfig.scheduleEnabled) {
+      setupScheduledJob(id, appConfig);
+    }
+
+    // D31: If app has configApiUrl, forward schedule changes to app's API
+    if (appConfig.configApiUrl && (newSchedule !== undefined || newScheduleDays !== undefined)) {
+      try {
+        const entries = (appConfig.scheduleDays || []).map(day => ({
+          id: `ql-${day}-${Date.now()}`,
+          day: day.toLowerCase(),
+          time: appConfig.schedule
+        }));
+
+        const response = await fetch(appConfig.configApiUrl, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ schedule: { entries } })
+        });
+
+        if (!response.ok) {
+          console.error(`[Scheduler] Failed to sync schedule to ${appConfig.name}: ${response.status}`);
+        } else {
+          console.log(`[Scheduler] Synced schedule to ${appConfig.name} API`);
+        }
+      } catch (err) {
+        console.error(`[Scheduler] Error syncing to ${appConfig.name}:`, err.message);
+      }
     }
 
     res.json({
       success: true,
-      schedule: config.apps[appIndex].schedule,
-      scheduleDescription: config.apps[appIndex].schedule
-        ? getScheduleDescription(config.apps[appIndex].schedule)
+      schedule: appConfig.schedule,
+      scheduleDays: appConfig.scheduleDays || null, // D31
+      scheduleDescription: appConfig.schedule
+        ? getScheduleDescription(appConfig.schedule, appConfig.scheduleDays)
         : null,
-      runIfMissed: config.apps[appIndex].runIfMissed
+      runIfMissed: appConfig.runIfMissed
     });
   } else {
     res.status(500).json({ error: 'Failed to save configuration' });
@@ -2774,7 +2854,8 @@ app.get('/api/schedules', (req, res) => {
         id: app.id,
         name: app.name,
         schedule: app.schedule,
-        scheduleDescription: getScheduleDescription(app.schedule),
+        scheduleDays: app.scheduleDays || null, // D31
+        scheduleDescription: getScheduleDescription(app.schedule, app.scheduleDays),
         scheduleEnabled: app.scheduleEnabled || false,
         runIfMissed: app.runIfMissed || false,
         lastRun: appState.lastRun || null,
@@ -2787,6 +2868,44 @@ app.get('/api/schedules', (req, res) => {
     });
 
   res.json(schedules);
+});
+
+// Launch an app in its configured mode (edge-app, etc.)
+app.post('/api/launch/:id', (req, res) => {
+  const { id } = req.params;
+  const config = loadAppsConfig();
+  const app = config.apps.find(a => a.id === id);
+
+  if (!app) {
+    return res.status(404).json({ error: 'App not found' });
+  }
+
+  const url = `http://localhost:${app.port}`;
+  const mode = app.launchMode || 'browser';
+
+  if (mode === 'edge-app') {
+    const edgeAppId = app.edgeAppId;
+    let cmd;
+    if (edgeAppId) {
+      // Use msedge_proxy.exe with app ID — identical to the installed Edge app shortcut
+      const proxyPath = 'C:\\Program Files (x86)\\Microsoft\\Edge\\Application\\msedge_proxy.exe';
+      cmd = `start "" "${proxyPath}" --profile-directory=Default --app-id=${edgeAppId}`;
+    } else {
+      // Fallback: generic app mode (no installed app identity)
+      cmd = `start "" "msedge" "--app=${url}"`;
+    }
+    exec(cmd, { windowsHide: true }, (err) => {
+      if (err) {
+        console.error(`[${app.name}] Failed to launch Edge app:`, err.message);
+        return res.status(500).json({ error: 'Failed to launch Edge app' });
+      }
+      console.log(`[${app.name}] Launched in Edge app mode${edgeAppId ? ' (installed app)' : ''}`);
+      res.json({ success: true, mode: 'edge-app', url, appId: edgeAppId || null });
+    });
+  } else {
+    // Default: tell frontend to open in browser tab
+    res.json({ success: true, mode: 'browser', url });
+  }
 });
 
 // Stop an app

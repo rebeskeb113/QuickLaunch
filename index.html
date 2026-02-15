@@ -2158,7 +2158,7 @@
           card.innerHTML = `
             <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
             <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}; ${isRunning ? 'cursor: pointer;' : 'cursor: not-allowed;'}"
-                 onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
+                 onclick="${isRunning ? `launchApp('${app.id}', ${app.port}, '${app.launchMode || 'browser'}')` : ''}"
                  title="${isRunning ? 'Open in browser' : 'Start the app first'}">
               ${renderIcon(app)}
             </div>
@@ -2216,7 +2216,7 @@
           card.innerHTML = `
             <button class="delete-btn" onclick="deleteApp('${app.id}', '${app.name}')" title="Remove app">&times;</button>
             <div class="app-icon" style="--icon-color-1: ${colors[0]}; --icon-color-2: ${colors[1]}"
-                 onclick="${isRunning ? `window.open('http://localhost:${app.port}', '_blank')` : ''}"
+                 onclick="${isRunning ? `launchApp('${app.id}', ${app.port}, '${app.launchMode || 'browser'}')` : ''}"
                  title="${isRunning ? 'Open in browser' : 'Start the app first'}">
               ${renderIcon(app)}
             </div>
@@ -2250,6 +2250,20 @@
         <div class="app-name">Add App</div>
       `;
       grid.appendChild(addCard);
+    }
+
+    // Launch app in configured mode (edge-app vs browser tab)
+    async function launchApp(appId, port, launchMode) {
+      if (launchMode === 'edge-app') {
+        try {
+          await fetch(`/api/launch/${appId}`, { method: 'POST' });
+        } catch (err) {
+          // Fallback to browser tab if launch API fails
+          window.open(`http://localhost:${port}`, '_blank');
+        }
+      } else {
+        window.open(`http://localhost:${port}`, '_blank');
+      }
     }
 
     // Handle schedule toggle (for scheduled apps)

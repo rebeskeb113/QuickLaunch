@@ -8,7 +8,7 @@
       "name": "Bulletproof",
       "description": "HTML email sender with MSAL auth",
       "port": 5173,
-      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\HTM_Email",
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\HTM_Email",
       "command": "npm run dev",
       "icon": "📧",
       "colors": [
@@ -25,7 +25,7 @@
       "name": "MealTrack",
       "description": "Meal & health tracking dashboard",
       "port": 5174,
-      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\MealTrack\\web",
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\MealTrack\\web",
       "command": "node node_modules/vite/bin/vite.js",
       "icon": "🍽️",
       "colors": [
@@ -38,7 +38,7 @@
       "maxRestartAttempts": 3,
       "schedule": "12:00",
       "scheduleEnabled": true,
-      "scheduleCommand": "npm run sync --prefix \"C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\MealTrack\"",
+      "scheduleCommand": "npm run sync --prefix \"C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\MealTrack\"",
       "runIfMissed": true
     },
     {
@@ -46,10 +46,10 @@
       "name": "CP Navigator",
       "description": "Counterpart OS knowledge graph",
       "port": 5175,
-      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\CounterpartNavigator",
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\CounterpartNavigator",
       "command": "npm run dev",
       "icon": "🤝",
-      "iconPath": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\CounterpartNavigator\\public\\favicon.png",
+      "iconPath": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\CounterpartNavigator\\public\\favicon.png",
       "colors": [
         "#ef4444",
         "#f97316"
@@ -64,10 +64,10 @@
       "name": "ILS Prep Bot",
       "description": "ILS meeting prep report generator",
       "port": 5176,
-      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\ILSPrepBot",
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\ILSPrepBot",
       "command": "node dist/server/index.js",
       "icon": "📋",
-      "iconPath": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\QuickLaunch\\icons\\clickup.svg",
+      "iconPath": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\QuickLaunch\\icons\\clickup.svg",
       "colors": [
         "#1e3a5f",
         "#2d5a87"
@@ -77,8 +77,32 @@
       "autoRestart": false,
       "maxRestartAttempts": 3,
       "schedule": "16:00",
-      "scheduleEnabled": true,
-      "scheduleDays": ["monday", "wednesday"]
+      "scheduleEnabled": false,
+      "scheduleDays": [
+        "monday",
+        "wednesday"
+      ],
+      "configApiUrl": "http://localhost:5176/api/config",
+      "_note": "PM2 manages process (D30). QuickLaunch provides schedule UI, forwards changes to app API (D31)."
+    },
+    {
+      "id": "playwright-fleet",
+      "name": "PW Fleet",
+      "description": "Playwright browser pool — admin dashboard",
+      "port": 9400,
+      "path": "C:\\Users\\BenjaminRebeske\\OneDrive - Corbeau Tech, LLC\\Documents\\Projects\\Products\\PlaywrightFleet",
+      "command": "npm run dev",
+      "icon": "🎭",
+      "colors": [
+        "#34d399",
+        "#60a5fa"
+      ],
+      "healthCheckUrl": "/api/health",
+      "startupTimeout": 15000,
+      "autoRestart": false,
+      "maxRestartAttempts": 3,
+      "launchMode": "edge-app",
+      "edgeAppId": "kohjfncgnndgmgkjmkpbmnphcdcjbeaa"
     }
   ]
 }
